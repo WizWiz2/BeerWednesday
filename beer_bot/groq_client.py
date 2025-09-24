@@ -72,8 +72,19 @@ class GroqVisionClient:
         LOGGER.debug("Sending request to Groq: %s", payload)
 
         async with httpx.AsyncClient(timeout=self._timeout) as client:
-            response = await client.post(self._base_url, headers=headers, json=payload)
-            response.raise_for_status()
+            try:
+                response = await client.post(self._base_url, headers=headers, json=payload)
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                LOGGER.error(
+                    "Groq API returned %s: %s",
+                    exc.response.status_code,
+                    exc.response.text,
+                )
+                raise
+            except httpx.HTTPError:
+                LOGGER.exception("Failed to reach Groq API")
+                raise
 
         data = response.json()
         try:
