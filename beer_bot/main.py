@@ -1,12 +1,12 @@
 """Entry point for the Beer Wednesday Telegram bot."""
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import NoReturn
 
 from dotenv import load_dotenv
 from telegram.ext import (
+    Application,
     ApplicationBuilder,
     CommandHandler,
     MessageHandler,
@@ -24,10 +24,8 @@ logging.basicConfig(
 LOGGER = logging.getLogger(__name__)
 
 
-async def run_bot() -> None:
-    """Initialise and start the Telegram bot."""
-    load_dotenv()
-    settings = Settings.load()
+def _build_application(settings: Settings) -> Application:
+    """Create the telegram application with all handlers configured."""
 
     application = ApplicationBuilder().token(settings.telegram_token).build()
 
@@ -47,14 +45,24 @@ async def run_bot() -> None:
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handlers.handle_text))
     application.add_error_handler(handlers.error_handler)
 
+    return application
+
+
+def run_bot() -> None:
+    """Initialise and start the Telegram bot."""
+    load_dotenv()
+    settings = Settings.load()
+
+    application = _build_application(settings)
+
     LOGGER.info("Bot is running. Press Ctrl+C to stop.")
-    await application.run_polling(close_loop=False)
+    application.run_polling()
 
 
 def main() -> NoReturn:  # pragma: no cover - thin wrapper
-    """Synchronously run the async bot."""
+    """Synchronously run the bot."""
     try:
-        asyncio.run(run_bot())
+        run_bot()
     except KeyboardInterrupt:
         LOGGER.info("Bot stopped by user")
 
