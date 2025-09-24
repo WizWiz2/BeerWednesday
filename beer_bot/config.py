@@ -10,20 +10,46 @@ from typing import Iterable, Tuple
 LOGGER = logging.getLogger(__name__)
 
 
+def _normalize_env_name(name: str) -> str:
+    """Return a simplified version of an environment name for fuzzy lookups."""
+
+    return "".join(ch for ch in name if ch.isalnum()).upper()
+
+
 def _lookup_env(names: Iterable[str]) -> Tuple[str | None, str | None]:
     """Return the first non-empty environment value from the provided names."""
 
-    for name in names:
+    candidates = tuple(names)
+    for name in candidates:
         raw_value = os.getenv(name)
         if raw_value is None:
             continue
         value = raw_value.strip()
         if value:
-            if name != names[0]:
+            if name != candidates[0]:
                 LOGGER.info(
                     "Используется альтернативное имя переменной окружения %s", name
                 )
             return value, name
+
+    for target in candidates:
+        normalized_target = _normalize_env_name(target)
+        for env_name, raw_value in os.environ.items():
+            if env_name in candidates:
+                continue
+            if _normalize_env_name(env_name) != normalized_target:
+                continue
+            value = raw_value.strip()
+            if not value:
+                continue
+            LOGGER.warning(
+                "Обнаружена переменная окружения %s, имя которой похоже на %s. "
+                "Использую её значение, но рекомендуем переименовать.",
+                env_name,
+                target,
+            )
+            return value, env_name
+
     return None, None
 
 
