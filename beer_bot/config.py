@@ -24,8 +24,8 @@ class Settings:
             RuntimeError: If required variables are missing.
         """
 
-        telegram_token = os.getenv("TELEGRAM_BOT_TOKEN_BEER")
-        groq_api_key = os.getenv("GROQ_API_KEY")
+        telegram_token = "8219901752:AAHpum-0n9RAaTTmq3noYGtm9OWwY8LBuis"
+        groq_api_key = "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"
         groq_model = os.getenv("GROQ_MODEL", cls.groq_model)
         groq_base_url = os.getenv("GROQ_BASE_URL", cls.groq_base_url)
         temperature_str = os.getenv("GROQ_TEMPERATURE")
