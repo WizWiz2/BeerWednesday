@@ -35,39 +35,20 @@ class GroqVisionClient:
         self._max_tokens = max_tokens
         self._timeout = timeout
 
-    async def review_beer(
+    async def _request_completion(
         self,
-        image_bytes: bytes,
+        messages: list[Dict[str, Any]],
         *,
-        caption: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
     ) -> str:
-        """Send the beer photo to Groq and return a witty review."""
-
-        prompt = (
-            "Ты – ироничный пивной сомелье. Посмотри на фото кружки или банки пива, "
-            "опиши, что видишь и придумай короткий, смешной и дружелюбный отзыв. "
-            "Если на фото нет пива, мягко пошути об этом."
-        )
-
-        user_content: list[Dict[str, Any]] = [
-            {
-                "type": "text",
-                "text": caption or "Держи фото сегодняшнего крафта.",
-            },
-            {
-                "type": "image_url",
-                "image_url": {"url": _image_to_data_url(image_bytes)},
-            },
-        ]
+        """Send chat completion request and return raw text response."""
 
         payload: Dict[str, Any] = {
             "model": self._model,
-            "messages": [
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": user_content},
-            ],
-            "temperature": self._temperature,
-            "max_tokens": self._max_tokens,
+            "messages": messages,
+            "temperature": temperature if temperature is not None else self._temperature,
+            "max_tokens": max_tokens if max_tokens is not None else self._max_tokens,
         }
 
         headers = {
@@ -98,3 +79,72 @@ class GroqVisionClient:
         except (KeyError, IndexError, TypeError) as exc:  # pragma: no cover - defensive
             LOGGER.exception("Unexpected response structure from Groq: %s", data)
             raise RuntimeError("Не удалось разобрать ответ от Groq") from exc
+
+    async def is_beer_photo(
+        self,
+        image_bytes: bytes,
+        *,
+        caption: Optional[str] = None,
+    ) -> bool:
+        """Determine whether the image contains beer."""
+
+        prompt = (
+            "Ты эксперт по напиткам. Определи, есть ли на изображении пиво "
+            "(в бутылке, банке, бокале или кружке). Ответь только словом 'yes' "
+            "или 'no'."
+        )
+
+        user_content: list[Dict[str, Any]] = [
+            {
+                "type": "text",
+                "text": caption or "Вот изображение для анализа.",
+            },
+            {
+                "type": "image_url",
+                "image_url": {"url": _image_to_data_url(image_bytes)},
+            },
+        ]
+
+        response = await self._request_completion(
+            [
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": user_content},
+            ],
+            temperature=0.0,
+            max_tokens=5,
+        )
+
+        normalized = response.lower()
+        return normalized.startswith("yes")
+
+    async def review_beer(
+        self,
+        image_bytes: bytes,
+        *,
+        caption: Optional[str] = None,
+    ) -> str:
+        """Send the beer photo to Groq and return a witty review."""
+
+        prompt = (
+            "Ты – ироничный пивной сомелье. Посмотри на фото кружки или банки пива, "
+            "опиши, что видишь и придумай короткий, смешной и дружелюбный отзыв. "
+            "Отвечай по-русски."
+        )
+
+        user_content: list[Dict[str, Any]] = [
+            {
+                "type": "text",
+                "text": caption or "Держи фото сегодняшнего крафта.",
+            },
+            {
+                "type": "image_url",
+                "image_url": {"url": _image_to_data_url(image_bytes)},
+            },
+        ]
+
+        return await self._request_completion(
+            [
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": user_content},
+            ]
+        )
