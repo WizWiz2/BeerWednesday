@@ -1,8 +1,12 @@
 """Configuration helpers for the Beer Wednesday bot."""
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -11,7 +15,7 @@ class Settings:
 
     telegram_token: str
     groq_api_key: str
-    groq_model: str = "llama-3.2-11b-vision-preview"
+    groq_model: str = "llava-v1.5-7b-32768-preview"
     groq_base_url: str = "https://api.groq.com/openai/v1/chat/completions"
     temperature: float = 0.7
     max_tokens: int = 1024
@@ -30,6 +34,22 @@ class Settings:
         groq_base_url = os.getenv("GROQ_BASE_URL", cls.groq_base_url)
         temperature_str = os.getenv("GROQ_TEMPERATURE")
         max_tokens_str = os.getenv("GROQ_MAX_TOKENS")
+
+        deprecated_models = {
+            "llama-3.2-11b-vision-preview": cls.groq_model,
+            "llava-v1.5-7b-4096-preview": cls.groq_model,
+        }
+
+        visited: set[str] = set()
+        while groq_model in deprecated_models and groq_model not in visited:
+            visited.add(groq_model)
+            replacement = deprecated_models[groq_model]
+            LOGGER.warning(
+                "Groq model '%s' is no longer supported. Falling back to '%s'.",
+                groq_model,
+                replacement,
+            )
+            groq_model = replacement
 
         missing = [
             name
