@@ -45,7 +45,7 @@
 | --- | --- |
 | `TELEGRAM_BOT_TOKEN` | Токен бота из @BotFather. |
 | `GROQ_API_KEY` | API ключ Groq Cloud. |
-| `GROQ_MODEL` | (Опционально) Название модели Groq, по умолчанию `llama-3.2-vision`. |
+| `GROQ_MODEL` | (Опционально) Название модели Groq, по умолчанию `llama-3.2-11b-vision-preview`. |
 | `GROQ_BASE_URL` | (Опционально) URL эндпоинта Chat Completions. |
 | `GROQ_TEMPERATURE` | (Опционально) Температура сэмплинга ответа. |
 | `GROQ_MAX_TOKENS` | (Опционально) Максимальное число токенов в ответе. |
