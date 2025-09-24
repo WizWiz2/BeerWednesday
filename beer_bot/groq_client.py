@@ -51,11 +51,11 @@ class GroqVisionClient:
 
         user_content: list[Dict[str, Any]] = [
             {
-                "type": "input_text",
+                "type": "text",
                 "text": caption or "Держи фото сегодняшнего крафта.",
             },
             {
-                "type": "input_image",
+                "type": "image_url",
                 "image_url": {"url": _image_to_data_url(image_bytes)},
             },
         ]
@@ -63,10 +63,7 @@ class GroqVisionClient:
         payload: Dict[str, Any] = {
             "model": self._model,
             "messages": [
-                {
-                    "role": "system",
-                    "content": [{"type": "input_text", "text": prompt}],
-                },
+                {"role": "system", "content": prompt},
                 {"role": "user", "content": user_content},
             ],
             "temperature": self._temperature,
