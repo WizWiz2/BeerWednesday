@@ -15,7 +15,7 @@ class Settings:
 
     telegram_token: str
     groq_api_key: str
-    groq_model: str = "llava-v1.5-7b-4096-preview"
+    groq_model: str = "llama-3.2-11b-vision-preview"
     groq_base_url: str = "https://api.groq.com/openai/v1/chat/completions"
     temperature: float = 0.7
     max_tokens: int = 1024
@@ -36,7 +36,7 @@ class Settings:
         max_tokens_str = os.getenv("GROQ_MAX_TOKENS")
 
         deprecated_models = {
-            "llama-3.2-11b-vision-preview": cls.groq_model,
+            "llava-v1.5-7b-4096-preview": cls.groq_model,
         }
 
         if groq_model in deprecated_models:
