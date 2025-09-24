@@ -50,14 +50,23 @@ class GroqVisionClient:
         )
 
         user_content: list[Dict[str, Any]] = [
-            {"type": "text", "text": caption or "Держи фото сегодняшнего крафта."},
-            {"type": "image_url", "image_url": {"url": _image_to_data_url(image_bytes)}},
+            {
+                "type": "input_text",
+                "text": caption or "Держи фото сегодняшнего крафта.",
+            },
+            {
+                "type": "input_image",
+                "image_url": {"url": _image_to_data_url(image_bytes)},
+            },
         ]
 
         payload: Dict[str, Any] = {
             "model": self._model,
             "messages": [
-                {"role": "system", "content": prompt},
+                {
+                    "role": "system",
+                    "content": [{"type": "input_text", "text": prompt}],
+                },
                 {"role": "user", "content": user_content},
             ],
             "temperature": self._temperature,
@@ -72,8 +81,19 @@ class GroqVisionClient:
         LOGGER.debug("Sending request to Groq: %s", payload)
 
         async with httpx.AsyncClient(timeout=self._timeout) as client:
-            response = await client.post(self._base_url, headers=headers, json=payload)
-            response.raise_for_status()
+            try:
+                response = await client.post(self._base_url, headers=headers, json=payload)
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                LOGGER.error(
+                    "Groq API returned %s: %s",
+                    exc.response.status_code,
+                    exc.response.text,
+                )
+                raise
+            except httpx.HTTPError:
+                LOGGER.exception("Failed to reach Groq API")
+                raise
 
         data = response.json()
         try:

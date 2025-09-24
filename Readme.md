@@ -1,6 +1,6 @@
 # Beer Wednesday Bot
 
-Телеграм-бот, который принимает фото пива из чата, отправляет его в Groq Cloud (модели `llava-v1.5-7b` или `llama-3.2-vision`) и возвращает ироничный отзыв сомелье.
+Телеграм-бот, который принимает фото пива из чата, отправляет его в Groq Cloud (модели `llava-v1.5-7b-4096-preview` или `llama-3.2-11b-vision-preview`) и возвращает ироничный отзыв сомелье.
 
 ## Возможности
 
@@ -12,7 +12,7 @@
 ## Быстрый старт
 
 1. **Создайте бота у @BotFather** и получите токен.
-2. **Получите API-ключ Groq Cloud** на [console.groq.com](https://console.groq.com/) и убедитесь, что у вас есть доступ к модели `llava-v1.5-7b` или `llama-3.2-vision`.
+2. **Получите API-ключ Groq Cloud** на [console.groq.com](https://console.groq.com/) и убедитесь, что у вас есть доступ к модели `llava-v1.5-7b-4096-preview` или `llama-3.2-11b-vision-preview`.
 3. Скопируйте `.env.example` в `.env` и заполните значения:
    ```bash
    cp .env.example .env
@@ -45,7 +45,7 @@
 | --- | --- |
 | `TELEGRAM_BOT_TOKEN` | Токен бота из @BotFather. |
 | `GROQ_API_KEY` | API ключ Groq Cloud. |
-| `GROQ_MODEL` | (Опционально) Название модели Groq, по умолчанию `llama-3.2-vision`. |
+| `GROQ_MODEL` | (Опционально) Название модели Groq, по умолчанию `llama-3.2-11b-vision-preview`. |
 | `GROQ_BASE_URL` | (Опционально) URL эндпоинта Chat Completions. |
 | `GROQ_TEMPERATURE` | (Опционально) Температура сэмплинга ответа. |
 | `GROQ_MAX_TOKENS` | (Опционально) Максимальное число токенов в ответе. |
