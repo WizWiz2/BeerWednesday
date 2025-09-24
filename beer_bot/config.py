@@ -11,7 +11,7 @@ class Settings:
 
     telegram_token: str
     groq_api_key: str
-    groq_model: str = "llama-3.2-vision"
+    groq_model: str = "llama-3.2-11b-vision-preview"
     groq_base_url: str = "https://api.groq.com/openai/v1/chat/completions"
     temperature: float = 0.7
     max_tokens: int = 1024
@@ -24,8 +24,8 @@ class Settings:
             RuntimeError: If required variables are missing.
         """
 
-        telegram_token = "8219901752:AAHpum-0n9RAaTTmq3noYGtm9OWwY8LBuis"
-        groq_api_key = "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"
+        telegram_token = os.getenv("TELEGRAM_BOT_TOKEN")
+        groq_api_key = os.getenv("GROQ_API_KEY")
         groq_model = os.getenv("GROQ_MODEL", cls.groq_model)
         groq_base_url = os.getenv("GROQ_BASE_URL", cls.groq_base_url)
         temperature_str = os.getenv("GROQ_TEMPERATURE")
