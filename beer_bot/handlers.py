@@ -45,12 +45,22 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     caption = update.message.caption
 
-    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING)
-
     image_buffer = BytesIO()
     telegram_file = await context.bot.get_file(photo.file_id)
     await telegram_file.download_to_memory(image_buffer)
     image_bytes = image_buffer.getvalue()
+
+    try:
+        is_beer = await groq_client.is_beer_photo(image_bytes, caption=caption)
+    except Exception:  # pragma: no cover - runtime guard
+        LOGGER.exception("Failed to detect beer in photo")
+        return
+
+    if not is_beer:
+        LOGGER.info("Ignoring non-beer photo from chat %s", update.effective_chat.id)
+        return
+
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING)
 
     try:
         review = await groq_client.review_beer(image_bytes, caption=caption)
@@ -65,13 +75,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Encourage users to send a photo when they send plain text."""
+    """Ignore plain text messages to avoid spam."""
     if not update.message:
         return
-
-    await update.message.reply_text(
-        "Я жду фото пива! Если нужна помощь — набери /help."
-    )
 
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:  # pragma: no cover
