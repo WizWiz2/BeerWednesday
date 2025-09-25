@@ -3,28 +3,54 @@ from __future__ import annotations
 
 import logging
 import os
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import List, Optional
 
 
 LOGGER = logging.getLogger(__name__)
 
 
 DEFAULT_POSTCARD_PROMPT = (
-    "A vibrant illustrated invitation postcard for a weekly get-together called"
-    " 'Пивная среда'. Capture a cozy bar in the evening with a group of male"
-    " friends smiling and clinking tall beer glasses. Use warm cinematic lighting,"
-    " lots of amber highlights, wood textures and playful details. Keep the scene"
-    " free from any visible text or lettering within the image."
+    "A vibrant illustrated invitation postcard for the weekly gathering"
+    " 'Пивная среда'. Show a joyful group of friends enjoying beer together"
+    " in a distinctive setting that matches the scene description. Use warm"
+    " cinematic lighting, plenty of amber highlights, rich textures and"
+    " playful storytelling details. Keep the scene free from any visible"
+    " text or lettering within the image."
 )
 
-DEFAULT_POSTCARD_NEGATIVE_PROMPT = (
-    "text, typography, lettering, captions, subtitles, female, woman, girl"
-)
+DEFAULT_POSTCARD_NEGATIVE_PROMPT = "text, typography, lettering, captions, subtitles"
 
 DEFAULT_POSTCARD_CAPTION = (
     "🍻 Пивная среда уже завтра! Стартуем в 19:30 — приходи пораньше и"
     " захвати друзей."
+)
+
+DEFAULT_POSTCARD_SCENARIOS = (
+    "Два космонавта и одна космобиологиня парят в невесомости орбитального"
+    " бара, тостуют за встречу под мягким светом Земли в иллюминаторах, стиль"
+    " реалистичной научной фантастики.",
+    "Пять панк-хакеров в киберпанковом ночном Токио сидят за неоновым"
+    " стойлом с прозрачными кружками светящегося пива, вокруг голограммы и"
+    " тёплый мокрый асфальт.",
+    "Три эльфа-пивовара и гном-ремесленник в фэнтезийной таверне под"
+    " гигантским деревом, иллюстрация в духе эпического хай-фэнтези.",
+    "Шестеро друзей в стилизованном плакате советской агитации 1930-х,"
+    " энергично поднимают кружки в красно-золотых лучах и строгости плаката.",
+    "Одинокий бард и два рыцаря в эстетике 'страдающего средневековья'"
+    " сидят у костра возле замка, грустно отпивают густое пиво из глиняных"
+    " кубков, стиль старинной миниатюры.",
+    "Три учёных в лаборатории стимпанка среди медных труб и шестерёнок"
+    " исследуют янтарное пиво в колбах, графика в духе викторианских гравюр.",
+    "Семь космических археологов в ретрофутуристических скафандрах празднуют"
+    " находку среди руин инопланетного города, стиль pulp sci-fi обложки.",
+    "Четверо художников-импрессионистов пишут закатную набережную и попивают"
+    " светлый эль, сцена размазана мягкими мазками в стиле Моне.",
+    "Две рок-звезды и диджей на кибер-рейве 2080-х, неон, лазеры, хромированные"
+    " кружки с пенящимся напитком, стиль глитч-арт.",
+    "Компания из пяти друзей на карнавальном корабле эпохи Возрождения,"
+    " мраморные колонны, маски и золотые бокалы, картина в стиле венецианских"
+    " мастеров.",
 )
 
 
@@ -46,6 +72,9 @@ class Settings:
     postcard_negative_prompt: Optional[str] = DEFAULT_POSTCARD_NEGATIVE_PROMPT
     postcard_caption: str = DEFAULT_POSTCARD_CAPTION
     postcard_timezone: str = "Europe/Moscow"
+    postcard_scenarios: List[str] = field(
+        default_factory=lambda: list(DEFAULT_POSTCARD_SCENARIOS)
+    )
 
     @classmethod
     def load(cls) -> "Settings":
@@ -131,6 +160,7 @@ class Settings:
             postcard_negative_prompt=postcard_negative_prompt or None,
             postcard_caption=postcard_caption,
             postcard_timezone=postcard_timezone,
+            postcard_scenarios=list(DEFAULT_POSTCARD_SCENARIOS),
         )
 
     @property
