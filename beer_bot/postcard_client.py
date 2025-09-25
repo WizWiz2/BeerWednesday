@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import httpx
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageFont
 
 
 LOGGER = logging.getLogger(__name__)
@@ -127,7 +127,9 @@ class HuggingFacePostcardClient:
 
         try:
             with Image.open(self._PLACEHOLDER_PATH) as placeholder:
-                postcard = ImageOps.fit(placeholder, (width, height), method=Image.LANCZOS).convert("RGBA")
+                postcard = placeholder.convert("RGB")
+                if postcard.size != (width, height):
+                    postcard = postcard.resize((width, height), Image.LANCZOS)
         except FileNotFoundError:
             LOGGER.warning(
                 "Фирменный постер не найден — используем резервный рендер",
@@ -138,89 +140,6 @@ class HuggingFacePostcardClient:
                 "Не удалось загрузить изображение-заглушку, используем резервный рендер",
             )
             return self._render_legacy_postcard(prompt, width=width, height=height)
-
-        overlay = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-        overlay_draw = ImageDraw.Draw(overlay)
-
-        padding_x = int(width * 0.06)
-        panel_height = max(int(height * 0.26), 220)
-        panel_top = height - panel_height
-        overlay_draw.rectangle(
-            [(0, panel_top), (width, height)],
-            fill=(18, 16, 11, 180),
-        )
-
-        def measure_text(
-            draw: ImageDraw.ImageDraw,
-            text: str,
-            font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
-        ) -> tuple[int, int]:
-            try:
-                bbox = draw.textbbox((0, 0), text, font=font)
-            except AttributeError:  # Pillow < 8.0 fallback
-                bbox = font.getbbox(text)
-            return bbox[2] - bbox[0], bbox[3] - bbox[1]
-
-        def wrap_text(
-            draw: ImageDraw.ImageDraw,
-            text: str,
-            font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
-            max_width: int,
-        ) -> str:
-            lines: list[str] = []
-            for raw_paragraph in text.splitlines() or [""]:
-                words = raw_paragraph.split()
-                if not words:
-                    lines.append("")
-                    continue
-                current_line: list[str] = []
-                for word in words:
-                    candidate = " ".join(current_line + [word])
-                    line_width, _ = measure_text(draw, candidate, font)
-                    if line_width <= max_width or not current_line:
-                        current_line.append(word)
-                    else:
-                        lines.append(" ".join(current_line))
-                        current_line = [word]
-                if current_line:
-                    lines.append(" ".join(current_line))
-            return "\n".join(lines)
-
-        title_font = self._load_font(max(int(width * 0.045), 34), bold=True)
-        body_font = self._load_font(max(int(width * 0.032), 28))
-        footer_font = self._load_font(max(int(width * 0.028), 24), bold=True)
-
-        title_text = "Сегодняшняя тема"
-        title_w, title_h = measure_text(overlay_draw, title_text, title_font)
-        overlay_draw.text(
-            (padding_x, panel_top + int(panel_height * 0.15)),
-            title_text,
-            font=title_font,
-            fill=(255, 205, 56, 235),
-        )
-
-        formatted_prompt = prompt.strip() or "Поделись настроением вечера, а мы подготовим кружки!"
-        text_top = panel_top + int(panel_height * 0.15) + title_h + 16
-        text_width = width - 2 * padding_x
-        wrapped_prompt = wrap_text(overlay_draw, formatted_prompt, body_font, text_width)
-        overlay_draw.multiline_text(
-            (padding_x, text_top),
-            wrapped_prompt,
-            font=body_font,
-            fill=(249, 250, 249, 235),
-            spacing=10,
-        )
-
-        footer_text = "До встречи в 19:30!"
-        footer_w, footer_h = measure_text(overlay_draw, footer_text, footer_font)
-        overlay_draw.text(
-            (width - padding_x - footer_w, height - int(panel_height * 0.18) - footer_h),
-            footer_text,
-            font=footer_font,
-            fill=(255, 205, 56, 235),
-        )
-
-        postcard = Image.alpha_composite(postcard, overlay).convert("RGB")
 
         buffer = BytesIO()
         postcard.save(buffer, format="PNG")
