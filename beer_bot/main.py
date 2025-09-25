@@ -12,6 +12,7 @@ from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
     MessageHandler,
+    PollAnswerHandler,
     filters,
 )
 
@@ -63,6 +64,7 @@ def _build_application(settings: Settings) -> Application:
     application.add_handler(CommandHandler("postcard", handlers.postcard_command))
     application.add_handler(MessageHandler(filters.PHOTO, handlers.handle_photo))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handlers.handle_text))
+    application.add_handler(PollAnswerHandler(handlers.handle_poll_answer))
     application.add_error_handler(handlers.error_handler)
 
     _schedule_weekly_postcard(application, settings)
