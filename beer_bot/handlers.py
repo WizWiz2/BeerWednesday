@@ -9,7 +9,9 @@ from telegram import Update
 from telegram.constants import ChatAction
 from telegram.ext import ContextTypes
 
+from .config import DEFAULT_POSTCARD_PROMPT
 from .groq_client import GroqVisionClient
+from .postcard_client import HuggingFacePostcardClient
 
 LOGGER = logging.getLogger(__name__)
 
@@ -25,6 +27,30 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     """Explain how to use the bot."""
     await update.message.reply_text(
         "Скинь фото крафтового пива (можно с подписью), и я вышлю ироничный отзыв."
+    )
+
+
+async def postcard_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Generate a Beer Wednesday invitation postcard on demand."""
+
+    if not update.message:
+        return
+
+    prompt_base: str = context.application.bot_data.get("postcard_prompt") or DEFAULT_POSTCARD_PROMPT
+    extra = update.message.text.partition(" ")[2].strip() if update.message.text else ""
+
+    if extra:
+        prompt = f"{prompt_base}\nДополнительные пожелания: {extra}"
+    else:
+        prompt = prompt_base
+
+    await update.message.reply_chat_action(action=ChatAction.UPLOAD_PHOTO)
+
+    await _send_postcard(
+        chat_id=update.effective_chat.id,
+        context=context,
+        prompt=prompt,
+        reply_to_message_id=update.message.message_id,
     )
 
 
@@ -83,3 +109,87 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:  # pragma: no cover
     """Log errors raised by handlers."""
     LOGGER.error("Update %s caused error %s", update, context.error)
+
+
+async def scheduled_postcard_job(context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Send the weekly Beer Wednesday postcard to the configured chat."""
+
+    if not context.job or context.job.chat_id is None:
+        LOGGER.warning("Postcard job triggered without chat_id; skipping")
+        return
+
+    prompt = ""
+    if context.job.data and isinstance(context.job.data, dict):
+        prompt = context.job.data.get("prompt", "")
+
+    await context.bot.send_chat_action(
+        chat_id=context.job.chat_id,
+        action=ChatAction.UPLOAD_PHOTO,
+    )
+
+    await _send_postcard(
+        chat_id=context.job.chat_id,
+        context=context,
+        prompt=prompt
+        or context.application.bot_data.get("postcard_prompt")
+        or DEFAULT_POSTCARD_PROMPT,
+    )
+
+
+async def _send_postcard(
+    *,
+    chat_id: int,
+    context: ContextTypes.DEFAULT_TYPE,
+    prompt: str,
+    reply_to_message_id: Optional[int] = None,
+) -> None:
+    """Generate postcard and send it to the specified chat."""
+
+    client: Optional[HuggingFacePostcardClient] = context.application.bot_data.get(
+        "postcard_client"
+    )
+
+    if not client:
+        LOGGER.warning("Postcard client is not configured")
+        if reply_to_message_id:
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text="Генерация открыток недоступна: нет доступа к Hugging Face API.",
+                reply_to_message_id=reply_to_message_id,
+            )
+        else:
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text="Генерация открыток временно недоступна.",
+            )
+        return
+
+    negative_prompt: Optional[str] = context.application.bot_data.get(
+        "postcard_negative_prompt"
+    )
+    caption: str = context.application.bot_data.get("postcard_caption", "")
+
+    try:
+        image_bytes = await client.generate_postcard(
+            prompt,
+            negative_prompt=negative_prompt,
+        )
+    except Exception:  # pragma: no cover - runtime guard
+        LOGGER.exception("Failed to generate postcard")
+        fail_text = "Не получилось сгенерировать открытку, попробуй позже."
+        if reply_to_message_id:
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=fail_text,
+                reply_to_message_id=reply_to_message_id,
+            )
+        else:
+            await context.bot.send_message(chat_id=chat_id, text=fail_text)
+        return
+
+    await context.bot.send_photo(
+        chat_id=chat_id,
+        photo=image_bytes,
+        caption=caption,
+        reply_to_message_id=reply_to_message_id,
+    )

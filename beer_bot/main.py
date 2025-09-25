@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import logging
+from datetime import time
 from typing import NoReturn
+from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 from telegram.ext import (
@@ -15,6 +17,7 @@ from telegram.ext import (
 
 from .config import Settings
 from .groq_client import GroqVisionClient
+from .postcard_client import HuggingFacePostcardClient
 from . import handlers
 
 logging.basicConfig(
@@ -39,13 +42,71 @@ def _build_application(settings: Settings) -> Application:
 
     application.bot_data["groq_client"] = groq_client
 
+    application.bot_data["postcard_prompt"] = settings.postcard_prompt
+    application.bot_data["postcard_negative_prompt"] = settings.postcard_negative_prompt
+    application.bot_data["postcard_caption"] = settings.postcard_caption
+
+    if settings.huggingface_api_token:
+        postcard_client = HuggingFacePostcardClient(
+            api_token=settings.huggingface_api_token,
+            model=settings.huggingface_model,
+            base_url=settings.huggingface_base_url,
+        )
+        application.bot_data["postcard_client"] = postcard_client
+    else:
+        LOGGER.warning(
+            "HUGGINGFACE_API_TOKEN не задан — генерация открыток будет недоступна."
+        )
+
     application.add_handler(CommandHandler("start", handlers.start))
     application.add_handler(CommandHandler("help", handlers.help_command))
+    application.add_handler(CommandHandler("postcard", handlers.postcard_command))
     application.add_handler(MessageHandler(filters.PHOTO, handlers.handle_photo))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handlers.handle_text))
     application.add_error_handler(handlers.error_handler)
 
+    _schedule_weekly_postcard(application, settings)
+
     return application
+
+
+def _schedule_weekly_postcard(application: Application, settings: Settings) -> None:
+    """Register a weekly job that sends the Beer Wednesday postcard."""
+
+    if not settings.postcard_chat_id:
+        LOGGER.warning(
+            "POSTCARD_CHAT_ID не задан — еженедельная отправка открытки отключена."
+        )
+        return
+
+    if "postcard_client" not in application.bot_data:
+        LOGGER.warning(
+            "Postcard client не сконфигурирован — пропускаем расписание открыток."
+        )
+        return
+
+    try:
+        tzinfo = ZoneInfo(settings.postcard_timezone)
+    except Exception:  # pragma: no cover - defensive branch
+        LOGGER.exception(
+            "Не удалось определить таймзону '%s' для расписания открыток.",
+            settings.postcard_timezone,
+        )
+        return
+
+    application.job_queue.run_daily(
+        handlers.scheduled_postcard_job,
+        time=time(hour=19, minute=0, tzinfo=tzinfo),
+        days=(2,),  # Tuesday (0=sunday)
+        data={"prompt": settings.postcard_prompt},
+        name="weekly_beer_postcard",
+        chat_id=settings.postcard_chat_id,
+    )
+    LOGGER.info(
+        "Weekly postcard job scheduled for chat %s at 19:00 %s every Tuesday.",
+        settings.postcard_chat_id,
+        settings.postcard_timezone,
+    )
 
 
 def run_bot() -> None:
