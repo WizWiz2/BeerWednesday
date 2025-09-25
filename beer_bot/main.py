@@ -46,6 +46,8 @@ def _build_application(settings: Settings) -> Application:
     application.bot_data["postcard_prompt"] = settings.postcard_prompt
     application.bot_data["postcard_negative_prompt"] = settings.postcard_negative_prompt
     application.bot_data["postcard_caption"] = settings.postcard_caption
+    application.bot_data["postcard_scenarios"] = settings.postcard_scenarios
+    application.bot_data["postcard_scenario_index"] = 0
 
     if settings.huggingface_api_token:
         postcard_client = HuggingFacePostcardClient(
