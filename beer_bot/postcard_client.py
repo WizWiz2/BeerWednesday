@@ -135,8 +135,17 @@ class HuggingFacePostcardClient:
         subtitle_font = self._load_font(36, bold=True)
         body_font = self._load_font(30)
 
+        def measure_text(text: str, font: ImageFont.FreeTypeFont | ImageFont.ImageFont) -> tuple[int, int]:
+            """Return width/height for the provided text using Pillow's textbbox."""
+
+            try:
+                bbox = draw.textbbox((0, 0), text, font=font)
+            except AttributeError:  # Pillow < 8.0 fallback
+                bbox = font.getbbox(text)
+            return bbox[2] - bbox[0], bbox[3] - bbox[1]
+
         title_text = "Beer Wednesday"
-        title_w, _ = draw.textsize(title_text, font=title_font)
+        title_w, _ = measure_text(title_text, title_font)
         draw.text(
             ((width - title_w) / 2, int(height * 0.05)),
             title_text,
@@ -145,7 +154,7 @@ class HuggingFacePostcardClient:
         )
 
         date_text = datetime.now().strftime("%d %B %Y")
-        date_w, _ = draw.textsize(date_text, font=subtitle_font)
+        date_w, _ = measure_text(date_text, subtitle_font)
         draw.text(
             ((width - date_w) / 2, int(height * 0.16)),
             date_text,
@@ -163,7 +172,7 @@ class HuggingFacePostcardClient:
         )
 
         footer_text = "Встретимся в баре!"
-        footer_w, _ = draw.textsize(footer_text, font=subtitle_font)
+        footer_w, _ = measure_text(footer_text, subtitle_font)
         draw.text(
             ((width - footer_w) / 2, height - int(height * 0.12)),
             footer_text,
