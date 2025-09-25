@@ -12,10 +12,14 @@ LOGGER = logging.getLogger(__name__)
 
 DEFAULT_POSTCARD_PROMPT = (
     "A vibrant illustrated invitation postcard for a weekly get-together called"
-    " 'Пивная среда'. Capture a cozy bar in the evening with friends smiling and"
-    " clinking tall beer glasses. Use warm cinematic lighting, lots of amber"
-    " highlights, wood textures and playful details. Add stylish Cyrillic text"
-    " that reads 'Пивная среда' and '19:30' as part of the composition."
+    " 'Пивная среда'. Capture a cozy bar in the evening with a group of male"
+    " friends smiling and clinking tall beer glasses. Use warm cinematic lighting,"
+    " lots of amber highlights, wood textures and playful details. Keep the scene"
+    " free from any visible text or lettering within the image."
+)
+
+DEFAULT_POSTCARD_NEGATIVE_PROMPT = (
+    "text, typography, lettering, captions, subtitles, female, woman, girl"
 )
 
 DEFAULT_POSTCARD_CAPTION = (
@@ -39,7 +43,7 @@ class Settings:
     huggingface_base_url: Optional[str] = None
     postcard_chat_id: Optional[int] = None
     postcard_prompt: str = DEFAULT_POSTCARD_PROMPT
-    postcard_negative_prompt: Optional[str] = None
+    postcard_negative_prompt: Optional[str] = DEFAULT_POSTCARD_NEGATIVE_PROMPT
     postcard_caption: str = DEFAULT_POSTCARD_CAPTION
     postcard_timezone: str = "Europe/Moscow"
 
