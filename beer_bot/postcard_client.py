@@ -122,20 +122,50 @@ class HuggingFacePostcardClient:
     ) -> bytes:
         """Generate a simple postcard using Pillow when API is unavailable."""
 
-        image = Image.new("RGB", (width, height), "#191919")
+        gradient_top = (17, 24, 39)
+        gradient_bottom = (67, 56, 202)
+
+        gradient_strip = Image.new("RGB", (1, height))
+        for y in range(height):
+            factor = y / max(height - 1, 1)
+            r = int(gradient_top[0] * (1 - factor) + gradient_bottom[0] * factor)
+            g = int(gradient_top[1] * (1 - factor) + gradient_bottom[1] * factor)
+            b = int(gradient_top[2] * (1 - factor) + gradient_bottom[2] * factor)
+            gradient_strip.putpixel((0, y), (r, g, b))
+
+        image = gradient_strip.resize((width, height))
+
+        glow_layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        glow = ImageDraw.Draw(glow_layer)
+        glow_radius = int(width * 0.9)
+        glow_center = (int(width * 0.8), int(height * 0.2))
+        glow.ellipse(
+            [
+                (glow_center[0] - glow_radius, glow_center[1] - glow_radius),
+                (glow_center[0] + glow_radius, glow_center[1] + glow_radius),
+            ],
+            fill=(251, 191, 36, 85),
+        )
+
+        image = Image.alpha_composite(image.convert("RGBA"), glow_layer).convert("RGB")
         draw = ImageDraw.Draw(image)
 
-        accent_color = "#f9a602"
-        secondary_color = "#353535"
+        accent_color = "#FBBF24"
+        text_color = "#F8FAFC"
+        panel_color = (15, 23, 42, 210)
 
-        draw.rectangle([(0, 0), (width, int(height * 0.22))], fill=secondary_color)
-        draw.rectangle([(0, height - int(height * 0.18)), (width, height)], fill=secondary_color)
+        title_font = self._load_font(82, bold=True)
+        subtitle_font = self._load_font(40, bold=True)
+        body_font = self._load_font(32)
+        caption_font = self._load_font(28)
 
-        title_font = self._load_font(68, bold=True)
-        subtitle_font = self._load_font(36, bold=True)
-        body_font = self._load_font(30)
+        padding_x = int(width * 0.08)
+        top_padding = int(height * 0.08)
+        bottom_padding = int(height * 0.1)
 
-        def measure_text(text: str, font: ImageFont.FreeTypeFont | ImageFont.ImageFont) -> tuple[int, int]:
+        def measure_text(
+            text: str, font: ImageFont.FreeTypeFont | ImageFont.ImageFont
+        ) -> tuple[int, int]:
             """Return width/height for the provided text using Pillow's textbbox."""
 
             try:
@@ -144,40 +174,89 @@ class HuggingFacePostcardClient:
                 bbox = font.getbbox(text)
             return bbox[2] - bbox[0], bbox[3] - bbox[1]
 
+        header_y = top_padding
         title_text = "Beer Wednesday"
-        title_w, _ = measure_text(title_text, title_font)
+        _, title_h = measure_text(title_text, title_font)
         draw.text(
-            ((width - title_w) / 2, int(height * 0.05)),
+            (padding_x, header_y),
             title_text,
             font=title_font,
             fill=accent_color,
         )
 
         date_text = datetime.now().strftime("%d %B %Y")
-        date_w, _ = measure_text(date_text, subtitle_font)
+        _, date_h = measure_text(date_text, subtitle_font)
         draw.text(
-            ((width - date_w) / 2, int(height * 0.16)),
+            (padding_x, header_y + title_h + 12),
             date_text,
             font=subtitle_font,
-            fill="white",
+            fill=text_color,
         )
 
-        body_text = textwrap.fill(prompt.strip(), width=40)
+        tagline_text = "Крафтовый четверг для своих" if datetime.now().weekday() == 3 else "Среда, когда собираются друзья"
+        _, tagline_h = measure_text(tagline_text, caption_font)
+        draw.text(
+            (padding_x, header_y + title_h + date_h + 36),
+            tagline_text,
+            font=caption_font,
+            fill=text_color,
+        )
+
+        panel_top = header_y + title_h + date_h + tagline_h + 76
+        panel_left = padding_x
+        panel_right = width - padding_x
+        panel_bottom = height - bottom_padding
+
+        card_layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        card_draw = ImageDraw.Draw(card_layer)
+        card_draw.rounded_rectangle(
+            [(panel_left, panel_top), (panel_right, panel_bottom)],
+            radius=int(width * 0.04),
+            fill=panel_color,
+        )
+
+        highlight_y = panel_top + int((panel_bottom - panel_top) * 0.18)
+        card_draw.line(
+            [(panel_left + 60, highlight_y), (panel_right - 60, highlight_y)],
+            fill=accent_color,
+            width=4,
+        )
+
+        image = Image.alpha_composite(image.convert("RGBA"), card_layer).convert("RGB")
+        draw = ImageDraw.Draw(image)
+
+        body_margin = 70
+        content_left = panel_left + body_margin
+        content_top = panel_top + body_margin
+        content_right = panel_right - body_margin
+        wrap_width = max(28, int((content_right - content_left) / 20))
+        formatted_prompt = prompt.strip() or "Поделись настроением вечера, а мы подготовим кружки!"
+        body_text = textwrap.fill(formatted_prompt, width=wrap_width)
+
         draw.multiline_text(
-            (int(width * 0.08), int(height * 0.32)),
+            (content_left, content_top),
             body_text,
             font=body_font,
-            fill="white",
-            spacing=12,
+            fill=text_color,
+            spacing=14,
         )
 
-        footer_text = "Встретимся в баре!"
-        footer_w, _ = measure_text(footer_text, subtitle_font)
+        footer_text = "Ждём тебя у стойки бара"
+        footer_w, footer_h = measure_text(footer_text, subtitle_font)
+        footer_y = panel_bottom - body_margin - footer_h
         draw.text(
-            ((width - footer_w) / 2, height - int(height * 0.12)),
+            (panel_right - body_margin - footer_w, footer_y),
             footer_text,
             font=subtitle_font,
             fill=accent_color,
+        )
+
+        location_text = "Ламповый бар на углу"
+        draw.text(
+            (content_left, footer_y),
+            location_text,
+            font=caption_font,
+            fill=text_color,
         )
 
         buffer = BytesIO()
