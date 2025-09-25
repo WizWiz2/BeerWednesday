@@ -18,6 +18,8 @@ LOGGER = logging.getLogger(__name__)
 ATTENDANCE_GOING_OPTION_INDEX = 0
 ATTENDANCE_THRESHOLD = 5
 ATTENDANCE_STORAGE_KEY = "attendance_polls"
+POSTCARD_SCENARIOS_KEY = "postcard_scenarios"
+POSTCARD_SCENARIO_INDEX_KEY = "postcard_scenario_index"
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -40,22 +42,24 @@ async def postcard_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     if not update.message:
         return
 
-    prompt_base: str = context.application.bot_data.get("postcard_prompt") or DEFAULT_POSTCARD_PROMPT
+    prompt_base: str = (
+        context.application.bot_data.get("postcard_prompt") or DEFAULT_POSTCARD_PROMPT
+    )
     extra = update.message.text.partition(" ")[2].strip() if update.message.text else ""
 
-    if extra:
-        prompt = f"{prompt_base}\nДополнительные пожелания: {extra}"
-    else:
-        prompt = prompt_base
+    prompt = _compose_postcard_prompt(context, prompt_base, extra)
 
     await update.message.reply_chat_action(action=ChatAction.UPLOAD_PHOTO)
 
-    await _send_postcard(
+    postcard_sent = await _send_postcard(
         chat_id=update.effective_chat.id,
         context=context,
         prompt=prompt,
         reply_to_message_id=update.message.message_id,
     )
+
+    if postcard_sent:
+        await _start_attendance_poll(chat_id=update.effective_chat.id, context=context)
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -131,16 +135,56 @@ async def scheduled_postcard_job(context: ContextTypes.DEFAULT_TYPE) -> None:
         action=ChatAction.UPLOAD_PHOTO,
     )
 
+    base_prompt = (
+        prompt
+        or context.application.bot_data.get("postcard_prompt")
+        or DEFAULT_POSTCARD_PROMPT
+    )
+
+    postcard_prompt = _compose_postcard_prompt(context, base_prompt)
+
     postcard_sent = await _send_postcard(
         chat_id=context.job.chat_id,
         context=context,
-        prompt=prompt
-        or context.application.bot_data.get("postcard_prompt")
-        or DEFAULT_POSTCARD_PROMPT,
+        prompt=postcard_prompt,
     )
 
     if postcard_sent:
         await _start_attendance_poll(chat_id=context.job.chat_id, context=context)
+
+
+def _compose_postcard_prompt(
+    context: ContextTypes.DEFAULT_TYPE, base_prompt: str, extra: str = ""
+) -> str:
+    """Combine base prompt with rotating scenarios and user extras."""
+
+    parts = [base_prompt.strip()]
+
+    scenario = _pop_next_postcard_scenario(context)
+    if scenario:
+        parts.append(f"Сценарий: {scenario}")
+
+    if extra:
+        parts.append(f"Дополнительные пожелания: {extra}")
+
+    return "\n\n".join(parts)
+
+
+def _pop_next_postcard_scenario(context: ContextTypes.DEFAULT_TYPE) -> str:
+    """Return the next postcard scenario and advance the rotation."""
+
+    application = getattr(context, "application", None)
+    if not application:
+        return ""
+
+    scenarios = application.bot_data.get(POSTCARD_SCENARIOS_KEY)
+    if not scenarios:
+        return ""
+
+    index = application.bot_data.get(POSTCARD_SCENARIO_INDEX_KEY, 0)
+    scenario = scenarios[index % len(scenarios)]
+    application.bot_data[POSTCARD_SCENARIO_INDEX_KEY] = (index + 1) % len(scenarios)
+    return scenario
 
 
 async def _send_postcard(
