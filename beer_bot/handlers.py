@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 from io import BytesIO
-from typing import Optional
+from typing import Dict, Optional
 
 from telegram import Update
 from telegram.constants import ChatAction
@@ -14,6 +14,10 @@ from .groq_client import GroqVisionClient
 from .postcard_client import HuggingFacePostcardClient
 
 LOGGER = logging.getLogger(__name__)
+
+ATTENDANCE_GOING_OPTION_INDEX = 0
+ATTENDANCE_THRESHOLD = 5
+ATTENDANCE_STORAGE_KEY = "attendance_polls"
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -127,13 +131,16 @@ async def scheduled_postcard_job(context: ContextTypes.DEFAULT_TYPE) -> None:
         action=ChatAction.UPLOAD_PHOTO,
     )
 
-    await _send_postcard(
+    postcard_sent = await _send_postcard(
         chat_id=context.job.chat_id,
         context=context,
         prompt=prompt
         or context.application.bot_data.get("postcard_prompt")
         or DEFAULT_POSTCARD_PROMPT,
     )
+
+    if postcard_sent:
+        await _start_attendance_poll(chat_id=context.job.chat_id, context=context)
 
 
 async def _send_postcard(
@@ -142,7 +149,7 @@ async def _send_postcard(
     context: ContextTypes.DEFAULT_TYPE,
     prompt: str,
     reply_to_message_id: Optional[int] = None,
-) -> None:
+) -> bool:
     """Generate postcard and send it to the specified chat."""
 
     client: Optional[HuggingFacePostcardClient] = context.application.bot_data.get(
@@ -162,7 +169,7 @@ async def _send_postcard(
                 chat_id=chat_id,
                 text="Генерация открыток временно недоступна.",
             )
-        return
+        return False
 
     negative_prompt: Optional[str] = context.application.bot_data.get(
         "postcard_negative_prompt"
@@ -185,7 +192,7 @@ async def _send_postcard(
             )
         else:
             await context.bot.send_message(chat_id=chat_id, text=fail_text)
-        return
+        return False
 
     await context.bot.send_photo(
         chat_id=chat_id,
@@ -193,3 +200,72 @@ async def _send_postcard(
         caption=caption,
         reply_to_message_id=reply_to_message_id,
     )
+
+    return True
+
+
+async def _start_attendance_poll(
+    *, chat_id: int, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Send a poll asking who plans to join Beer Wednesday."""
+
+    poll_message = await context.bot.send_poll(
+        chat_id=chat_id,
+        question="Кто идёт на пивную среду?",
+        options=[
+            "Я иду",
+            "Ещё не решил",
+            "Не смогу",
+        ],
+        is_anonymous=False,
+        allows_multiple_answers=False,
+    )
+
+    if not poll_message.poll:
+        LOGGER.warning("Attendance poll was sent without poll payload")
+        return
+
+    poll_state: Dict[str, Dict[str, object]] = context.application.bot_data.setdefault(
+        ATTENDANCE_STORAGE_KEY, {}
+    )
+
+    poll_state[poll_message.poll.id] = {
+        "chat_id": chat_id,
+        "message_id": poll_message.message_id,
+        "notified": False,
+        "votes": {},
+    }
+
+
+async def handle_poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Track poll answers and remind to reserve a table when needed."""
+
+    if not update.poll_answer:
+        return
+
+    poll_data = context.bot_data.get(ATTENDANCE_STORAGE_KEY)
+    if not poll_data:
+        return
+
+    poll_state = poll_data.get(update.poll_answer.poll_id)
+    if not poll_state:
+        return
+
+    votes: Dict[int, list[int]] = poll_state.setdefault("votes", {})
+    votes[update.poll_answer.user.id] = update.poll_answer.option_ids
+
+    going_count = sum(
+        1
+        for selected in votes.values()
+        if ATTENDANCE_GOING_OPTION_INDEX in selected
+    )
+
+    if going_count >= ATTENDANCE_THRESHOLD and not poll_state.get("notified"):
+        poll_state["notified"] = True
+        await context.bot.send_message(
+            chat_id=poll_state["chat_id"],
+            text=(
+                f"Нас уже {going_count}! "
+                "Пора бронировать стол 🍻"
+            ),
+        )
