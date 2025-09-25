@@ -5,8 +5,8 @@ import logging
 from io import BytesIO
 from typing import Dict, Optional
 
-from telegram import Update
-from telegram.constants import ChatAction
+from telegram import Message, Update
+from telegram.constants import ChatAction, ChatType, MessageEntityType
 from telegram.ext import ContextTypes
 
 from .config import DEFAULT_POSTCARD_PROMPT
@@ -109,9 +109,18 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Ignore plain text messages to avoid spam."""
-    if not update.message:
+    """Answer beer questions when the bot is addressed directly."""
+    message = update.message
+    if not message:
         return
+
+    bot_username = getattr(context.bot, "username", None)
+    bot_id = getattr(context.bot, "id", None)
+
+    if not _is_direct_engagement(message, bot_username, bot_id):
+        return
+
+    await _respond_as_sommelier(message, context, bot_username)
 
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:  # pragma: no cover
@@ -151,6 +160,100 @@ async def scheduled_postcard_job(context: ContextTypes.DEFAULT_TYPE) -> None:
 
     if postcard_sent:
         await _start_attendance_poll(chat_id=context.job.chat_id, context=context)
+
+
+def _is_direct_engagement(
+    message: Message, bot_username: Optional[str], bot_id: Optional[int]
+) -> bool:
+    """Return whether the message is addressed to the bot directly."""
+
+    if message.chat.type == ChatType.PRIVATE:
+        return True
+
+    if bot_username and _mentions_bot(message, bot_username):
+        return True
+
+    if (
+        bot_id
+        and message.reply_to_message
+        and message.reply_to_message.from_user
+        and message.reply_to_message.from_user.id == bot_id
+    ):
+        return True
+
+    return False
+
+
+def _mentions_bot(message: Message, bot_username: str) -> bool:
+    """Check whether the message mentions the bot by username."""
+
+    if not message.entities or not message.text:
+        return False
+
+    mention = f"@{bot_username.lower()}"
+    for entity in message.entities:
+        if entity.type != MessageEntityType.MENTION:
+            continue
+        entity_text = message.text[entity.offset : entity.offset + entity.length]
+        if entity_text.lower() == mention:
+            return True
+
+    return False
+
+
+def _extract_question_text(message: Message, bot_username: Optional[str]) -> str:
+    """Remove the bot mention from the message text and trim it."""
+
+    text = message.text or ""
+    if not text:
+        return ""
+
+    if not bot_username or not message.entities:
+        return text.strip()
+
+    cleaned = text
+    lower_username = bot_username.lower()
+    for entity in message.entities:
+        if entity.type != MessageEntityType.MENTION:
+            continue
+        entity_text = text[entity.offset : entity.offset + entity.length]
+        if entity_text.lower() == f"@{lower_username}":
+            cleaned = (text[: entity.offset] + text[entity.offset + entity.length :]).strip()
+            break
+
+    return cleaned.strip()
+
+
+async def _respond_as_sommelier(
+    message: Message, context: ContextTypes.DEFAULT_TYPE, bot_username: Optional[str]
+) -> None:
+    """Generate a sommelier-style answer about beer."""
+
+    groq_client: Optional[GroqVisionClient] = context.application.bot_data.get(
+        "groq_client"
+    )
+    if not groq_client:
+        await message.reply_text("Groq клиент не настроен. Обратитесь к администратору.")
+        return
+
+    question = _extract_question_text(message, bot_username)
+    if not question:
+        await message.reply_text("Спроси меня о пиве — с радостью отвечу!")
+        return
+
+    await context.bot.send_chat_action(
+        chat_id=message.chat_id,
+        action=ChatAction.TYPING,
+    )
+
+    try:
+        answer = await groq_client.answer_beer_question(question)
+    except Exception:  # pragma: no cover - runtime guard
+        LOGGER.exception("Failed to answer beer question")
+        await message.reply_text("Не удалось обсудить пиво, попробуй позже.")
+        return
+
+    await message.reply_text(answer)
 
 
 def _compose_postcard_prompt(

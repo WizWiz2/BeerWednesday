@@ -235,3 +235,21 @@ class GroqVisionClient:
             ],
             max_tokens=140,
         )
+
+    async def answer_beer_question(self, question: str) -> str:
+        """Respond to a beer-related question in the sommelier persona."""
+
+        prompt = (
+            "Ты — дружелюбный пивной сомелье. Отвечай только на вопросы о пиве, "
+            "его стилях, культуре пития, сочетаниях с едой и истории. Если "
+            "вопрос не про пиво, вежливо скажи, что общаешься лишь на пивные "
+            "темы. Будь кратким, но информативным и говори по-русски."
+        )
+
+        return await self._request_completion(
+            [
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": question},
+            ],
+            max_tokens=220,
+        )
