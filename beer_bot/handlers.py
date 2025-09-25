@@ -278,17 +278,28 @@ async def _start_attendance_poll(
 ) -> None:
     """Send a poll asking who plans to join Beer Wednesday."""
 
-    poll_message = await context.bot.send_poll(
-        chat_id=chat_id,
-        question="Кто идёт на пивную среду?",
-        options=[
-            "Я иду",
-            "Ещё не решил",
-            "Не смогу",
-        ],
-        is_anonymous=False,
-        allows_multiple_answers=False,
-    )
+    try:
+        poll_message = await context.bot.send_poll(
+            chat_id=chat_id,
+            question="Кто идёт на пивную среду?",
+            options=[
+                "Я иду",
+                "Ещё не решил",
+                "Не смогу",
+            ],
+            is_anonymous=False,
+            allows_multiple_answers=False,
+        )
+    except Exception:  # pragma: no cover - runtime guard
+        LOGGER.exception("Failed to send attendance poll")
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=(
+                "Не удалось запустить опрос посещаемости. "
+                "Проверь права бота на создание опросов."
+            ),
+        )
+        return
 
     if not poll_message.poll:
         LOGGER.warning("Attendance poll was sent without poll payload")
