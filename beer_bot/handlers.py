@@ -234,6 +234,19 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if not message:
         return
 
+    if message.entities and message.text:
+        for entity in message.entities:
+            if entity.type != MessageEntityType.BOT_COMMAND or entity.offset != 0:
+                continue
+
+            command = message.text[1 : entity.length]
+            command_name = command.split("@", 1)[0].lower()
+
+            if command_name == "debug_postcards":
+                await debug_postcards_command(update, context)
+
+            return
+
     bot_username = getattr(context.bot, "username", None)
     bot_id = getattr(context.bot, "id", None)
 
