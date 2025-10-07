@@ -72,7 +72,7 @@ class Settings:
     postcard_prompt: str = DEFAULT_POSTCARD_PROMPT
     postcard_negative_prompt: Optional[str] = DEFAULT_POSTCARD_NEGATIVE_PROMPT
     postcard_caption: str = DEFAULT_POSTCARD_CAPTION
-    postcard_timezone: str = "Europe/Moscow"
+    postcard_timezone: str = "Asia/Almaty"
     postcard_scenarios: List[str] = field(
         default_factory=lambda: list(DEFAULT_POSTCARD_SCENARIOS)
     )
