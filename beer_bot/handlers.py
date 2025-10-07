@@ -43,10 +43,34 @@ def _is_debug_postcards_enabled(context: ContextTypes.DEFAULT_TYPE, job_name: st
     return stored_job_name == job_name
 
 
+def _chat_id_message(chat_id: int) -> str:
+    """Return a human-friendly message that exposes the chat id."""
+
+    return (
+        "Привет! Пришли мне фото пива, и я попрошу сомелье оставить отзыв.\n\n"
+        "ID этого чата: {chat_id}. Передай его админам, чтобы заполнить "
+        "POSTCARD_CHAT_ID для еженедельных открыток."
+    ).format(chat_id=chat_id)
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a greeting message when the bot is started."""
+
+    if not update.message or not update.effective_chat:
+        return
+
+    await update.message.reply_text(_chat_id_message(update.effective_chat.id))
+
+
+async def chat_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Reply with the current chat id so admins can copy/paste it."""
+
+    if not update.message or not update.effective_chat:
+        return
+
     await update.message.reply_text(
-        "Привет! Пришли мне фото пива, и я попрошу сомелье оставить отзыв."
+        f"ID этого чата: {update.effective_chat.id}. "
+        "Скопируй его в переменную окружения POSTCARD_CHAT_ID."
     )
 
 

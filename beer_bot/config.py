@@ -73,6 +73,9 @@ class Settings:
     postcard_negative_prompt: Optional[str] = DEFAULT_POSTCARD_NEGATIVE_PROMPT
     postcard_caption: str = DEFAULT_POSTCARD_CAPTION
     postcard_timezone: str = "Asia/Almaty"
+    postcard_weekday: int = 2
+    postcard_hour: int = 21
+    postcard_minute: int = 0
     postcard_scenarios: List[str] = field(
         default_factory=lambda: list(DEFAULT_POSTCARD_SCENARIOS)
     )
@@ -101,6 +104,9 @@ class Settings:
         )
         postcard_caption = os.getenv("POSTCARD_CAPTION", cls.postcard_caption)
         postcard_timezone = os.getenv("POSTCARD_TIMEZONE", cls.postcard_timezone)
+        postcard_weekday_raw = os.getenv("POSTCARD_WEEKDAY")
+        postcard_hour_raw = os.getenv("POSTCARD_HOUR")
+        postcard_minute_raw = os.getenv("POSTCARD_MINUTE")
 
         deprecated_models = {
             "llava-v1.5-7b-4096-preview": cls.groq_model,
@@ -146,6 +152,61 @@ class Settings:
         else:
             postcard_chat_id = None
 
+        def _parse_int(
+            raw_value: Optional[str],
+            *,
+            name: str,
+            default: int,
+            minimum: int,
+            maximum: int,
+        ) -> int:
+            if raw_value is None:
+                return default
+
+            try:
+                parsed = int(raw_value)
+            except ValueError:
+                LOGGER.error(
+                    "%s должно быть целым числом, получили '%s'",
+                    name,
+                    raw_value,
+                )
+                return default
+
+            if parsed < minimum or parsed > maximum:
+                LOGGER.error(
+                    "%s должно быть в диапазоне %s–%s, получили '%s'",
+                    name,
+                    minimum,
+                    maximum,
+                    raw_value,
+                )
+                return default
+
+            return parsed
+
+        postcard_weekday = _parse_int(
+            postcard_weekday_raw,
+            name="POSTCARD_WEEKDAY",
+            default=cls.postcard_weekday,
+            minimum=0,
+            maximum=6,
+        )
+        postcard_hour = _parse_int(
+            postcard_hour_raw,
+            name="POSTCARD_HOUR",
+            default=cls.postcard_hour,
+            minimum=0,
+            maximum=23,
+        )
+        postcard_minute = _parse_int(
+            postcard_minute_raw,
+            name="POSTCARD_MINUTE",
+            default=cls.postcard_minute,
+            minimum=0,
+            maximum=59,
+        )
+
         return cls(
             telegram_token=telegram_token,
             groq_api_key=groq_api_key,
@@ -161,6 +222,9 @@ class Settings:
             postcard_negative_prompt=postcard_negative_prompt or None,
             postcard_caption=postcard_caption,
             postcard_timezone=postcard_timezone,
+            postcard_weekday=postcard_weekday,
+            postcard_hour=postcard_hour,
+            postcard_minute=postcard_minute,
             postcard_scenarios=list(DEFAULT_POSTCARD_SCENARIOS),
         )
 

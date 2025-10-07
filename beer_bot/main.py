@@ -63,6 +63,7 @@ def _build_application(settings: Settings) -> Application:
 
     application.add_handler(CommandHandler("start", handlers.start))
     application.add_handler(CommandHandler("help", handlers.help_command))
+    application.add_handler(CommandHandler("chatid", handlers.chat_id_command))
     application.add_handler(CommandHandler("postcard", handlers.postcard_command))
     application.add_handler(CommandHandler("debug_postcards", handlers.debug_postcards_command))
     application.add_handler(MessageHandler(filters.PHOTO, handlers.handle_photo))
@@ -110,16 +111,23 @@ def _schedule_weekly_postcard(application: Application, settings: Settings) -> N
 
     application.job_queue.run_daily(
         handlers.scheduled_postcard_job,
-        time=time(hour=21, minute=0, tzinfo=tzinfo),
-        days=(2,),  # Tuesday (0=sunday)
+        time=time(
+            hour=settings.postcard_hour,
+            minute=settings.postcard_minute,
+            tzinfo=tzinfo,
+        ),
+        days=(settings.postcard_weekday,),  # 0=Sunday, 6=Saturday
         data={"prompt": settings.postcard_prompt},
         name="weekly_beer_postcard",
         chat_id=settings.postcard_chat_id,
     )
     LOGGER.info(
-        "Weekly postcard job scheduled for chat %s at 21:00 %s every Tuesday.",
+        "Weekly postcard job scheduled for chat %s at %02d:%02d %s (weekday=%s, 0=Sunday).",
         settings.postcard_chat_id,
+        settings.postcard_hour,
+        settings.postcard_minute,
         settings.postcard_timezone,
+        settings.postcard_weekday,
     )
 
 
