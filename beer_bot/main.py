@@ -27,6 +27,9 @@ logging.basicConfig(
 )
 LOGGER = logging.getLogger(__name__)
 
+POSTCARD_HOUR = 22
+POSTCARD_MINUTE = 0
+
 
 def _build_application(settings: Settings) -> Application:
     """Create the telegram application with all handlers configured."""
@@ -110,15 +113,17 @@ def _schedule_weekly_postcard(application: Application, settings: Settings) -> N
 
     application.job_queue.run_daily(
         handlers.scheduled_postcard_job,
-        time=time(hour=21, minute=0, tzinfo=tzinfo),
+        time=time(hour=POSTCARD_HOUR, minute=POSTCARD_MINUTE, tzinfo=tzinfo),
         days=(2,),  # Tuesday (0=sunday)
         data={"prompt": settings.postcard_prompt},
         name="weekly_beer_postcard",
         chat_id=settings.postcard_chat_id,
     )
     LOGGER.info(
-        "Weekly postcard job scheduled for chat %s at 21:00 %s every Tuesday.",
+        "Weekly postcard job scheduled for chat %s at %02d:%02d %s every Tuesday.",
         settings.postcard_chat_id,
+        POSTCARD_HOUR,
+        POSTCARD_MINUTE,
         settings.postcard_timezone,
     )
 
