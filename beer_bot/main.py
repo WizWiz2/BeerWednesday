@@ -110,14 +110,14 @@ def _schedule_weekly_postcard(application: Application, settings: Settings) -> N
 
     application.job_queue.run_daily(
         handlers.scheduled_postcard_job,
-        time=time(hour=19, minute=0, tzinfo=tzinfo),
+        time=time(hour=21, minute=0, tzinfo=tzinfo),
         days=(2,),  # Tuesday (0=sunday)
         data={"prompt": settings.postcard_prompt},
         name="weekly_beer_postcard",
         chat_id=settings.postcard_chat_id,
     )
     LOGGER.info(
-        "Weekly postcard job scheduled for chat %s at 19:00 %s every Tuesday.",
+        "Weekly postcard job scheduled for chat %s at 21:00 %s every Tuesday.",
         settings.postcard_chat_id,
         settings.postcard_timezone,
     )
