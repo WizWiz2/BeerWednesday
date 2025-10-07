@@ -24,6 +24,25 @@ DEBUG_POSTCARDS_JOB_KEY = "debug_postcards_job"
 DEBUG_POSTCARDS_INTERVAL_SECONDS = 5 * 60
 
 
+def _debug_postcards_state_message(*, enabled: bool) -> str:
+    """Return a short sentence describing the debug postcards state."""
+
+    state = "включена" if enabled else "отключена"
+    return f"Текущее состояние: {state}."
+
+
+def _is_debug_postcards_enabled(context: ContextTypes.DEFAULT_TYPE, job_name: str) -> bool:
+    """Best-effort detection of whether the debug postcards job is active."""
+
+    if context.job_queue:
+        jobs = context.job_queue.get_jobs_by_name(job_name)
+        if any(not job.removed for job in jobs):
+            return True
+
+    stored_job_name = context.chat_data.get(DEBUG_POSTCARDS_JOB_KEY)
+    return stored_job_name == job_name
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a greeting message when the bot is started."""
     await update.message.reply_text(
@@ -73,25 +92,36 @@ async def debug_postcards_command(update: Update, context: ContextTypes.DEFAULT_
     chat_id = update.effective_chat.id
     mode = update.message.text.partition(" ")[2].strip().lower()
 
+    job_name = f"{DEBUG_POSTCARDS_JOB_KEY}_{chat_id}"
+
     if not mode:
+        state_message = _debug_postcards_state_message(
+            enabled=_is_debug_postcards_enabled(context, job_name)
+        )
         await update.message.reply_text(
-            "Использование: /debug_postcards on|off"
+            "Использование: /debug_postcards on|off. " + state_message
         )
         return
 
     if context.job_queue is None:
+        state_message = _debug_postcards_state_message(
+            enabled=_is_debug_postcards_enabled(context, job_name)
+        )
         await update.message.reply_text(
-            "Job queue недоступен — не могу управлять отладочной рассылкой."
+            "Job queue недоступен — не могу управлять отладочной рассылкой. "
+            + state_message
         )
         return
 
     if "postcard_client" not in context.application.bot_data:
+        state_message = _debug_postcards_state_message(
+            enabled=_is_debug_postcards_enabled(context, job_name)
+        )
         await update.message.reply_text(
-            "Генерация открыток недоступна: нет доступа к Hugging Face API."
+            "Генерация открыток недоступна: нет доступа к Hugging Face API. "
+            + state_message
         )
         return
-
-    job_name = f"{DEBUG_POSTCARDS_JOB_KEY}_{chat_id}"
 
     if mode in {"on", "enable", "start"}:
         for job in context.job_queue.get_jobs_by_name(job_name):
@@ -106,8 +136,10 @@ async def debug_postcards_command(update: Update, context: ContextTypes.DEFAULT_
             data={"prompt": context.application.bot_data.get("postcard_prompt", "")},
         )
         context.chat_data[DEBUG_POSTCARDS_JOB_KEY] = job_name
+        state_message = _debug_postcards_state_message(enabled=True)
         await update.message.reply_text(
-            "Отладочная рассылка включена — открытки будут приходить каждые 5 минут."
+            "Отладочная рассылка включена — открытки будут приходить каждые 5 минут. "
+            + state_message
         )
         LOGGER.info("Debug postcards enabled for chat %s", chat_id)
         return
@@ -117,17 +149,27 @@ async def debug_postcards_command(update: Update, context: ContextTypes.DEFAULT_
         for job in jobs:
             job.schedule_removal()
 
+        context.chat_data.pop(DEBUG_POSTCARDS_JOB_KEY, None)
+        state_message = _debug_postcards_state_message(enabled=False)
+
         if jobs:
-            await update.message.reply_text("Отладочная рассылка отключена.")
+            await update.message.reply_text(
+                "Отладочная рассылка отключена. " + state_message
+            )
             LOGGER.info("Debug postcards disabled for chat %s", chat_id)
         else:
-            await update.message.reply_text("Отладочная рассылка и так была отключена.")
+            await update.message.reply_text(
+                "Отладочная рассылка и так была отключена. " + state_message
+            )
 
-        context.chat_data.pop(DEBUG_POSTCARDS_JOB_KEY, None)
         return
 
+    state_message = _debug_postcards_state_message(
+        enabled=_is_debug_postcards_enabled(context, job_name)
+    )
     await update.message.reply_text(
-        "Неизвестный режим. Используй /debug_postcards on или /debug_postcards off."
+        "Неизвестный режим. Используй /debug_postcards on или /debug_postcards off. "
+        + state_message
     )
 
 
