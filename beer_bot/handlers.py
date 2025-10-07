@@ -533,6 +533,7 @@ async def _start_attendance_poll(
         ],
         is_anonymous=False,
         allows_multiple_answers=False,
+        api_kwargs={"allow_view_results_without_vote": True},
     )
 
     if not poll_message.poll:
