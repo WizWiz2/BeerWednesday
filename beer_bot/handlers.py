@@ -20,6 +20,8 @@ ATTENDANCE_THRESHOLD = 5
 ATTENDANCE_STORAGE_KEY = "attendance_polls"
 POSTCARD_SCENARIOS_KEY = "postcard_scenarios"
 POSTCARD_SCENARIO_INDEX_KEY = "postcard_scenario_index"
+DEBUG_POSTCARDS_JOB_KEY = "debug_postcards_job"
+DEBUG_POSTCARDS_INTERVAL_SECONDS = 5 * 60
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -60,6 +62,73 @@ async def postcard_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     if postcard_sent:
         await _start_attendance_poll(chat_id=update.effective_chat.id, context=context)
+
+
+async def debug_postcards_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Toggle a debug postcard broadcast that runs every five minutes."""
+
+    if not update.message:
+        return
+
+    chat_id = update.effective_chat.id
+    mode = update.message.text.partition(" ")[2].strip().lower()
+
+    if not mode:
+        await update.message.reply_text(
+            "Использование: /debug_postcards on|off"
+        )
+        return
+
+    if context.job_queue is None:
+        await update.message.reply_text(
+            "Job queue недоступен — не могу управлять отладочной рассылкой."
+        )
+        return
+
+    if "postcard_client" not in context.application.bot_data:
+        await update.message.reply_text(
+            "Генерация открыток недоступна: нет доступа к Hugging Face API."
+        )
+        return
+
+    job_name = f"{DEBUG_POSTCARDS_JOB_KEY}_{chat_id}"
+
+    if mode in {"on", "enable", "start"}:
+        for job in context.job_queue.get_jobs_by_name(job_name):
+            job.schedule_removal()
+
+        context.job_queue.run_repeating(
+            scheduled_postcard_job,
+            interval=DEBUG_POSTCARDS_INTERVAL_SECONDS,
+            first=0,
+            chat_id=chat_id,
+            name=job_name,
+            data={"prompt": context.application.bot_data.get("postcard_prompt", "")},
+        )
+        context.chat_data[DEBUG_POSTCARDS_JOB_KEY] = job_name
+        await update.message.reply_text(
+            "Отладочная рассылка включена — открытки будут приходить каждые 5 минут."
+        )
+        LOGGER.info("Debug postcards enabled for chat %s", chat_id)
+        return
+
+    if mode in {"off", "disable", "stop"}:
+        jobs = context.job_queue.get_jobs_by_name(job_name)
+        for job in jobs:
+            job.schedule_removal()
+
+        if jobs:
+            await update.message.reply_text("Отладочная рассылка отключена.")
+            LOGGER.info("Debug postcards disabled for chat %s", chat_id)
+        else:
+            await update.message.reply_text("Отладочная рассылка и так была отключена.")
+
+        context.chat_data.pop(DEBUG_POSTCARDS_JOB_KEY, None)
+        return
+
+    await update.message.reply_text(
+        "Неизвестный режим. Используй /debug_postcards on или /debug_postcards off."
+    )
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

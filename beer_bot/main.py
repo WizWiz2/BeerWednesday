@@ -64,6 +64,7 @@ def _build_application(settings: Settings) -> Application:
     application.add_handler(CommandHandler("start", handlers.start))
     application.add_handler(CommandHandler("help", handlers.help_command))
     application.add_handler(CommandHandler("postcard", handlers.postcard_command))
+    application.add_handler(CommandHandler("debug_postcards", handlers.debug_postcards_command))
     application.add_handler(MessageHandler(filters.PHOTO, handlers.handle_photo))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handlers.handle_text))
     application.add_handler(PollAnswerHandler(handlers.handle_poll_answer))
@@ -80,6 +81,15 @@ def _schedule_weekly_postcard(application: Application, settings: Settings) -> N
     if not settings.postcard_chat_id:
         LOGGER.warning(
             "POSTCARD_CHAT_ID не задан — еженедельная отправка открытки отключена."
+        )
+        return
+
+    if application.job_queue is None:
+        LOGGER.warning(
+            "Job queue не инициализирован — еженедельная рассылка открыток отключена."
+        )
+        LOGGER.warning(
+            "Убедитесь, что python-telegram-bot установлен с extra 'job-queue'."
         )
         return
 
