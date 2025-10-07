@@ -247,6 +247,16 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
             return
 
+    if message.text:
+        trimmed_text = message.text.strip()
+        if trimmed_text.startswith("/"):
+            command = trimmed_text.split(None, 1)[0]
+            command_name = command[1:].split("@", 1)[0].lower()
+
+            if command_name == "debug_postcards":
+                await debug_postcards_command(update, context)
+                return
+
     bot_username = getattr(context.bot, "username", None)
     bot_id = getattr(context.bot, "id", None)
 
