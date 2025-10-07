@@ -90,7 +90,16 @@ async def debug_postcards_command(update: Update, context: ContextTypes.DEFAULT_
         return
 
     chat_id = update.effective_chat.id
-    mode = update.message.text.partition(" ")[2].strip().lower()
+
+    mode_raw = ""
+    if context.args:
+        mode_raw = context.args[0]
+    elif update.message.text:
+        parts = update.message.text.split(None, 1)
+        if len(parts) > 1:
+            mode_raw = parts[1]
+
+    mode = mode_raw.strip().lower()
 
     job_name = f"{DEBUG_POSTCARDS_JOB_KEY}_{chat_id}"
 
