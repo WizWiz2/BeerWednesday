@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 
 from .config import DEFAULT_BARGHOPPING_PROMPT, DEFAULT_POSTCARD_PROMPT
 from .groq_client import GroqVisionClient
-from .postcard_client import HuggingFacePostcardClient
+from .postcard_client import HuggingFacePostcardClient, PLACEHOLDER_POSTCARD_PATH
 
 LOGGER = logging.getLogger(__name__)
 
@@ -33,6 +33,23 @@ DEFAULT_ATTENDANCE_OPTIONS = [
 ]
 DEFAULT_BEER_POLL_QUESTION = "Кто идёт на пивную среду?"
 DEFAULT_BARGHOPPING_POLL_QUESTION = "Кто идёт на бархоппинг?"
+
+
+def _load_placeholder_postcard() -> Optional[bytes]:
+    """Read the bundled placeholder postcard image from disk."""
+
+    try:
+        return PLACEHOLDER_POSTCARD_PATH.read_bytes()
+    except FileNotFoundError:
+        LOGGER.error(
+            "Placeholder postcard file is missing at %s", PLACEHOLDER_POSTCARD_PATH
+        )
+    except OSError:  # pragma: no cover - defensive branch
+        LOGGER.exception(
+            "Failed to read placeholder postcard from %s", PLACEHOLDER_POSTCARD_PATH
+        )
+
+    return None
 
 
 def _debug_postcards_state_message(*, enabled: bool) -> str:
@@ -635,33 +652,43 @@ async def _send_postcard(
         "postcard_client"
     )
 
-    if not client:
-        LOGGER.warning("Postcard client is not configured")
-        if reply_to_message_id:
-            await context.bot.send_message(
-                chat_id=chat_id,
-                text="Генерация открыток недоступна: нет доступа к Hugging Face API.",
-                reply_to_message_id=reply_to_message_id,
-            )
-        else:
-            await context.bot.send_message(
-                chat_id=chat_id,
-                text="Генерация открыток временно недоступна.",
-            )
-        return False
-
-    if negative_prompt is None:
-        negative_prompt = context.application.bot_data.get("postcard_negative_prompt")
-
-    caption_text = (
+    caption_source = (
         caption
         if caption is not None
         else context.application.bot_data.get("postcard_caption", "")
     )
+    caption_to_send = str(caption_source) if caption_source is not None else ""
+
+    if not client:
+        LOGGER.warning(
+            "Postcard client is not configured — sending bundled placeholder postcard"
+        )
+        placeholder_bytes = _load_placeholder_postcard()
+        if placeholder_bytes is None:
+            fail_text = "Генерация открыток недоступна: нет доступа к Hugging Face API."
+            if reply_to_message_id:
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=fail_text,
+                    reply_to_message_id=reply_to_message_id,
+                )
+            else:
+                await context.bot.send_message(chat_id=chat_id, text=fail_text)
+            return False
+
+        await context.bot.send_photo(
+            chat_id=chat_id,
+            photo=placeholder_bytes,
+            caption=caption_to_send,
+            reply_to_message_id=reply_to_message_id,
+        )
+        return True
+
+    if negative_prompt is None:
+        negative_prompt = context.application.bot_data.get("postcard_negative_prompt")
 
     if negative_prompt is not None:
         negative_prompt = str(negative_prompt)
-    caption_to_send = str(caption_text) if caption_text is not None else ""
 
     try:
         image_bytes = await client.generate_postcard(

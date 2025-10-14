@@ -16,10 +16,11 @@ from PIL import Image, ImageDraw, ImageFont
 LOGGER = logging.getLogger(__name__)
 
 
+PLACEHOLDER_POSTCARD_PATH = Path(__file__).resolve().parent / "postcard_placeholder.jpg"
+
+
 class HuggingFacePostcardClient:
     """Tiny wrapper around the Hugging Face text-to-image endpoint."""
-
-    _PLACEHOLDER_PATH = Path(__file__).resolve().parent / "postcard_placeholder.jpg"
 
     def __init__(
         self,
@@ -126,7 +127,7 @@ class HuggingFacePostcardClient:
         """Generate a simple postcard using Pillow when API is unavailable."""
 
         try:
-            with Image.open(self._PLACEHOLDER_PATH) as placeholder:
+            with Image.open(PLACEHOLDER_POSTCARD_PATH) as placeholder:
                 postcard = placeholder.convert("RGB")
                 if postcard.size != (width, height):
                     postcard = postcard.resize((width, height), Image.LANCZOS)
