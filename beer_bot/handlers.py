@@ -2,14 +2,17 @@
 from __future__ import annotations
 
 import logging
+from datetime import date, datetime, timedelta
 from io import BytesIO
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from telegram import Message, Update
 from telegram.constants import ChatAction, ChatType, MessageEntityType
 from telegram.ext import ContextTypes
 
-from .config import DEFAULT_POSTCARD_PROMPT
+from zoneinfo import ZoneInfo
+
+from .config import DEFAULT_BARGHOPPING_PROMPT, DEFAULT_POSTCARD_PROMPT
 from .groq_client import GroqVisionClient
 from .postcard_client import HuggingFacePostcardClient
 
@@ -22,6 +25,14 @@ POSTCARD_SCENARIOS_KEY = "postcard_scenarios"
 POSTCARD_SCENARIO_INDEX_KEY = "postcard_scenario_index"
 DEBUG_POSTCARDS_JOB_KEY = "debug_postcards_job"
 DEBUG_POSTCARDS_INTERVAL_SECONDS = 5 * 60
+
+DEFAULT_ATTENDANCE_OPTIONS = [
+    "Я иду",
+    "Ещё не решил",
+    "Не смогу",
+]
+DEFAULT_BEER_POLL_QUESTION = "Кто идёт на пивную среду?"
+DEFAULT_BARGHOPPING_POLL_QUESTION = "Кто идёт на бархоппинг?"
 
 
 def _debug_postcards_state_message(*, enabled: bool) -> str:
@@ -104,7 +115,54 @@ async def postcard_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     )
 
     if postcard_sent:
-        await _start_attendance_poll(chat_id=update.effective_chat.id, context=context)
+        poll_question = (
+            context.application.bot_data.get("beer_poll_question")
+            or DEFAULT_BEER_POLL_QUESTION
+        )
+        await _start_attendance_poll(
+            chat_id=update.effective_chat.id,
+            context=context,
+            question=poll_question,
+        )
+
+
+async def barhopping_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Generate a monthly barhopping invitation on demand."""
+
+    if not update.message:
+        return
+
+    prompt_base: str = (
+        context.application.bot_data.get("barhopping_prompt")
+        or DEFAULT_BARGHOPPING_PROMPT
+    )
+    extra = update.message.text.partition(" ")[2].strip() if update.message.text else ""
+    prompt = _compose_postcard_prompt(context, prompt_base, extra)
+
+    await update.message.reply_chat_action(action=ChatAction.UPLOAD_PHOTO)
+
+    negative_prompt = context.application.bot_data.get("barhopping_negative_prompt")
+    caption = context.application.bot_data.get("barhopping_caption")
+
+    postcard_sent = await _send_postcard(
+        chat_id=update.effective_chat.id,
+        context=context,
+        prompt=prompt,
+        negative_prompt=negative_prompt,
+        caption=caption,
+        reply_to_message_id=update.message.message_id,
+    )
+
+    if postcard_sent:
+        poll_question = (
+            context.application.bot_data.get("barhopping_poll_question")
+            or DEFAULT_BARGHOPPING_POLL_QUESTION
+        )
+        await _start_attendance_poll(
+            chat_id=update.effective_chat.id,
+            context=context,
+            question=poll_question,
+        )
 
 
 async def debug_postcards_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -302,9 +360,9 @@ async def scheduled_postcard_job(context: ContextTypes.DEFAULT_TYPE) -> None:
         LOGGER.warning("Postcard job triggered without chat_id; skipping")
         return
 
-    prompt = ""
+    job_data: Dict[str, object] = {}
     if context.job.data and isinstance(context.job.data, dict):
-        prompt = context.job.data.get("prompt", "")
+        job_data = context.job.data
 
     await context.bot.send_chat_action(
         chat_id=context.job.chat_id,
@@ -312,7 +370,7 @@ async def scheduled_postcard_job(context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
     base_prompt = (
-        prompt
+        str(job_data.get("prompt", ""))
         or context.application.bot_data.get("postcard_prompt")
         or DEFAULT_POSTCARD_PROMPT
     )
@@ -323,10 +381,115 @@ async def scheduled_postcard_job(context: ContextTypes.DEFAULT_TYPE) -> None:
         chat_id=context.job.chat_id,
         context=context,
         prompt=postcard_prompt,
+        negative_prompt=str(job_data.get("negative_prompt", ""))
+        if job_data.get("negative_prompt")
+        else None,
+        caption=str(job_data.get("caption", ""))
+        if job_data.get("caption")
+        else None,
     )
 
     if postcard_sent:
-        await _start_attendance_poll(chat_id=context.job.chat_id, context=context)
+        poll_question = (
+            str(job_data.get("poll_question", ""))
+            or context.application.bot_data.get("beer_poll_question")
+            or DEFAULT_BEER_POLL_QUESTION
+        )
+        await _start_attendance_poll(
+            chat_id=context.job.chat_id,
+            context=context,
+            question=poll_question,
+        )
+
+
+async def scheduled_barhopping_notification_job(
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    """Send the monthly barhopping reminder if tomorrow is penultimate Friday."""
+
+    if not context.job or context.job.chat_id is None:
+        LOGGER.warning("Barhopping job triggered without chat_id; skipping")
+        return
+
+    job_data: Dict[str, object] = {}
+    if context.job.data and isinstance(context.job.data, dict):
+        job_data = context.job.data
+
+    timezone_name = (
+        str(job_data.get("timezone", ""))
+        or context.application.bot_data.get("barhopping_timezone")
+        or "Asia/Almaty"
+    )
+
+    try:
+        tzinfo = ZoneInfo(timezone_name)
+    except Exception:  # pragma: no cover - defensive branch
+        LOGGER.exception(
+            "Не удалось определить таймзону '%s' для бархоппинга.", timezone_name
+        )
+        return
+
+    today = datetime.now(tzinfo).date()
+    tomorrow = today + timedelta(days=1)
+
+    if not _is_penultimate_friday(tomorrow):
+        LOGGER.debug(
+            "Skipping barhopping reminder: %s is not the penultimate Friday of the month.",
+            tomorrow,
+        )
+        return
+
+    await context.bot.send_chat_action(
+        chat_id=context.job.chat_id,
+        action=ChatAction.UPLOAD_PHOTO,
+    )
+
+    base_prompt = (
+        str(job_data.get("prompt", ""))
+        or context.application.bot_data.get("barhopping_prompt")
+        or DEFAULT_BARGHOPPING_PROMPT
+    )
+
+    postcard_prompt = _compose_postcard_prompt(context, base_prompt)
+
+    negative_prompt = job_data.get("negative_prompt") or context.application.bot_data.get(
+        "barhopping_negative_prompt"
+    )
+    caption = job_data.get("caption") or context.application.bot_data.get(
+        "barhopping_caption"
+    )
+    poll_question = (
+        job_data.get("poll_question")
+        or context.application.bot_data.get("barhopping_poll_question")
+        or DEFAULT_BARGHOPPING_POLL_QUESTION
+    )
+
+    postcard_sent = await _send_postcard(
+        chat_id=context.job.chat_id,
+        context=context,
+        prompt=postcard_prompt,
+        negative_prompt=str(negative_prompt) if negative_prompt else None,
+        caption=str(caption) if caption else None,
+    )
+
+    if postcard_sent:
+        await _start_attendance_poll(
+            chat_id=context.job.chat_id,
+            context=context,
+            question=str(poll_question),
+        )
+
+
+def _is_penultimate_friday(candidate: date) -> bool:
+    """Return whether the given date is the penultimate Friday of its month."""
+
+    if candidate.weekday() != 4:  # 0=Monday, 4=Friday
+        return False
+
+    next_friday = candidate + timedelta(days=7)
+    two_weeks_later = candidate + timedelta(days=14)
+
+    return next_friday.month == candidate.month and two_weeks_later.month != candidate.month
 
 
 def _is_direct_engagement(
@@ -462,6 +625,8 @@ async def _send_postcard(
     chat_id: int,
     context: ContextTypes.DEFAULT_TYPE,
     prompt: str,
+    negative_prompt: Optional[str] = None,
+    caption: Optional[str] = None,
     reply_to_message_id: Optional[int] = None,
 ) -> bool:
     """Generate postcard and send it to the specified chat."""
@@ -485,10 +650,18 @@ async def _send_postcard(
             )
         return False
 
-    negative_prompt: Optional[str] = context.application.bot_data.get(
-        "postcard_negative_prompt"
+    if negative_prompt is None:
+        negative_prompt = context.application.bot_data.get("postcard_negative_prompt")
+
+    caption_text = (
+        caption
+        if caption is not None
+        else context.application.bot_data.get("postcard_caption", "")
     )
-    caption: str = context.application.bot_data.get("postcard_caption", "")
+
+    if negative_prompt is not None:
+        negative_prompt = str(negative_prompt)
+    caption_to_send = str(caption_text) if caption_text is not None else ""
 
     try:
         image_bytes = await client.generate_postcard(
@@ -511,7 +684,7 @@ async def _send_postcard(
     await context.bot.send_photo(
         chat_id=chat_id,
         photo=image_bytes,
-        caption=caption,
+        caption=caption_to_send,
         reply_to_message_id=reply_to_message_id,
     )
 
@@ -519,18 +692,20 @@ async def _send_postcard(
 
 
 async def _start_attendance_poll(
-    *, chat_id: int, context: ContextTypes.DEFAULT_TYPE
+    *,
+    chat_id: int,
+    context: ContextTypes.DEFAULT_TYPE,
+    question: str = DEFAULT_BEER_POLL_QUESTION,
+    options: Optional[List[str]] = None,
 ) -> None:
-    """Send a poll asking who plans to join Beer Wednesday."""
+    """Send a poll asking who plans to join the upcoming meetup."""
+
+    poll_options = list(options or DEFAULT_ATTENDANCE_OPTIONS)
 
     poll_message = await context.bot.send_poll(
         chat_id=chat_id,
-        question="Кто идёт на пивную среду?",
-        options=[
-            "Я иду",
-            "Ещё не решил",
-            "Не смогу",
-        ],
+        question=question,
+        options=poll_options,
         is_anonymous=False,
         allows_multiple_answers=False,
         api_kwargs={"allow_view_results_without_vote": True},
