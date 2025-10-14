@@ -27,6 +27,21 @@ DEFAULT_POSTCARD_CAPTION = (
     " захвати друзей."
 )
 
+DEFAULT_BARGHOPPING_PROMPT = (
+    "A stylish illustrated invitation postcard for a monthly barhopping night"
+    " called 'Бархоппинг'. Show friends moving between atmospheric bars,"
+    " comparing cocktails and craft beer under the evening lights of a vibrant"
+    " city street. Keep the mood adventurous yet cozy and avoid any visible"
+    " lettering in the scene."
+)
+
+DEFAULT_BARGHOPPING_NEGATIVE_PROMPT = DEFAULT_POSTCARD_NEGATIVE_PROMPT
+
+DEFAULT_BARGHOPPING_CAPTION = (
+    "🍹 Бархоппинг уже совсем скоро! Собираемся на закате, чтобы пройтись по"
+    " любимым барам и открыть новые."
+)
+
 DEFAULT_POSTCARD_SCENARIOS = (
     "Два космонавта и одна космобиологиня парят в невесомости орбитального"
     " бара, тостуют за встречу под мягким светом Земли в иллюминаторах, стиль"
@@ -79,6 +94,14 @@ class Settings:
     postcard_scenarios: List[str] = field(
         default_factory=lambda: list(DEFAULT_POSTCARD_SCENARIOS)
     )
+    barhopping_chat_id: Optional[int] = None
+    barhopping_prompt: str = DEFAULT_BARGHOPPING_PROMPT
+    barhopping_negative_prompt: Optional[str] = DEFAULT_BARGHOPPING_NEGATIVE_PROMPT
+    barhopping_caption: str = DEFAULT_BARGHOPPING_CAPTION
+    barhopping_timezone: str = "Asia/Almaty"
+    barhopping_hour: int = 12
+    barhopping_minute: int = 0
+    barhopping_poll_question: str = "Кто идёт на бархоппинг?"
 
     @classmethod
     def load(cls) -> "Settings":
@@ -107,6 +130,18 @@ class Settings:
         postcard_weekday_raw = os.getenv("POSTCARD_WEEKDAY")
         postcard_hour_raw = os.getenv("POSTCARD_HOUR")
         postcard_minute_raw = os.getenv("POSTCARD_MINUTE")
+        barhopping_chat_id_raw = os.getenv("BARGHOPPING_CHAT_ID")
+        barhopping_prompt = os.getenv("BARGHOPPING_PROMPT", cls.barhopping_prompt)
+        barhopping_negative_prompt = os.getenv(
+            "BARGHOPPING_NEGATIVE_PROMPT", cls.barhopping_negative_prompt or ""
+        )
+        barhopping_caption = os.getenv("BARGHOPPING_CAPTION", cls.barhopping_caption)
+        barhopping_timezone = os.getenv("BARGHOPPING_TIMEZONE", cls.barhopping_timezone)
+        barhopping_hour_raw = os.getenv("BARGHOPPING_HOUR")
+        barhopping_minute_raw = os.getenv("BARGHOPPING_MINUTE")
+        barhopping_poll_question = os.getenv(
+            "BARGHOPPING_POLL_QUESTION", cls.barhopping_poll_question
+        )
 
         deprecated_models = {
             "llava-v1.5-7b-4096-preview": cls.groq_model,
@@ -151,6 +186,19 @@ class Settings:
                 postcard_chat_id = None
         else:
             postcard_chat_id = None
+
+        barhopping_chat_id: Optional[int]
+        if barhopping_chat_id_raw:
+            try:
+                barhopping_chat_id = int(barhopping_chat_id_raw)
+            except ValueError:
+                LOGGER.error(
+                    "BARGHOPPING_CHAT_ID должно быть целым числом, получили '%s'",
+                    barhopping_chat_id_raw,
+                )
+                barhopping_chat_id = None
+        else:
+            barhopping_chat_id = postcard_chat_id
 
         def _parse_int(
             raw_value: Optional[str],
@@ -207,6 +255,21 @@ class Settings:
             maximum=59,
         )
 
+        barhopping_hour = _parse_int(
+            barhopping_hour_raw,
+            name="BARGHOPPING_HOUR",
+            default=cls.barhopping_hour,
+            minimum=0,
+            maximum=23,
+        )
+        barhopping_minute = _parse_int(
+            barhopping_minute_raw,
+            name="BARGHOPPING_MINUTE",
+            default=cls.barhopping_minute,
+            minimum=0,
+            maximum=59,
+        )
+
         return cls(
             telegram_token=telegram_token,
             groq_api_key=groq_api_key,
@@ -226,6 +289,14 @@ class Settings:
             postcard_hour=postcard_hour,
             postcard_minute=postcard_minute,
             postcard_scenarios=list(DEFAULT_POSTCARD_SCENARIOS),
+            barhopping_chat_id=barhopping_chat_id,
+            barhopping_prompt=barhopping_prompt,
+            barhopping_negative_prompt=barhopping_negative_prompt or None,
+            barhopping_caption=barhopping_caption,
+            barhopping_timezone=barhopping_timezone,
+            barhopping_hour=barhopping_hour,
+            barhopping_minute=barhopping_minute,
+            barhopping_poll_question=barhopping_poll_question,
         )
 
     @property

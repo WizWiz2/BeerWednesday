@@ -48,6 +48,12 @@ def _build_application(settings: Settings) -> Application:
     application.bot_data["postcard_caption"] = settings.postcard_caption
     application.bot_data["postcard_scenarios"] = settings.postcard_scenarios
     application.bot_data["postcard_scenario_index"] = 0
+    application.bot_data["beer_poll_question"] = handlers.DEFAULT_BEER_POLL_QUESTION
+    application.bot_data["barhopping_prompt"] = settings.barhopping_prompt
+    application.bot_data["barhopping_negative_prompt"] = settings.barhopping_negative_prompt
+    application.bot_data["barhopping_caption"] = settings.barhopping_caption
+    application.bot_data["barhopping_timezone"] = settings.barhopping_timezone
+    application.bot_data["barhopping_poll_question"] = settings.barhopping_poll_question
 
     if settings.huggingface_api_token:
         postcard_client = HuggingFacePostcardClient(
@@ -65,6 +71,7 @@ def _build_application(settings: Settings) -> Application:
     application.add_handler(CommandHandler("help", handlers.help_command))
     application.add_handler(CommandHandler("chatid", handlers.chat_id_command))
     application.add_handler(CommandHandler("postcard", handlers.postcard_command))
+    application.add_handler(CommandHandler("barhopping", handlers.barhopping_command))
     application.add_handler(CommandHandler("debug_postcards", handlers.debug_postcards_command))
     application.add_handler(MessageHandler(filters.PHOTO, handlers.handle_photo))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handlers.handle_text))
@@ -72,6 +79,7 @@ def _build_application(settings: Settings) -> Application:
     application.add_error_handler(handlers.error_handler)
 
     _schedule_weekly_postcard(application, settings)
+    _schedule_barhopping_notification(application, settings)
 
     return application
 
@@ -128,6 +136,65 @@ def _schedule_weekly_postcard(application: Application, settings: Settings) -> N
         settings.postcard_minute,
         settings.postcard_timezone,
         settings.postcard_weekday,
+    )
+
+
+def _schedule_barhopping_notification(application: Application, settings: Settings) -> None:
+    """Register a Thursday reminder for the monthly barhopping meetup."""
+
+    if not settings.barhopping_chat_id:
+        LOGGER.info("BARGHOPPING_CHAT_ID не задан — ежемесячная рассылка отключена.")
+        return
+
+    if application.job_queue is None:
+        LOGGER.warning(
+            "Job queue не инициализирован — ежемесячная рассылка бархоппинга отключена."
+        )
+        LOGGER.warning(
+            "Убедитесь, что python-telegram-bot установлен с extra 'job-queue'."
+        )
+        return
+
+    if "postcard_client" not in application.bot_data:
+        LOGGER.warning(
+            "Postcard client не сконфигурирован — пропускаем расписание бархоппинга."
+        )
+        return
+
+    try:
+        tzinfo = ZoneInfo(settings.barhopping_timezone)
+    except Exception:  # pragma: no cover - defensive branch
+        LOGGER.exception(
+            "Не удалось определить таймзону '%s' для уведомлений бархоппинга.",
+            settings.barhopping_timezone,
+        )
+        return
+
+    application.job_queue.run_daily(
+        handlers.scheduled_barhopping_notification_job,
+        time=time(
+            hour=settings.barhopping_hour,
+            minute=settings.barhopping_minute,
+            tzinfo=tzinfo,
+        ),
+        days=(3,),  # 0=Sunday, 3=Thursday
+        data={
+            "prompt": settings.barhopping_prompt,
+            "negative_prompt": settings.barhopping_negative_prompt,
+            "caption": settings.barhopping_caption,
+            "poll_question": settings.barhopping_poll_question,
+            "timezone": settings.barhopping_timezone,
+        },
+        name="monthly_barhopping_notification",
+        chat_id=settings.barhopping_chat_id,
+    )
+
+    LOGGER.info(
+        "Monthly barhopping reminder scheduled for chat %s at %02d:%02d %s (Thursday).",
+        settings.barhopping_chat_id,
+        settings.barhopping_hour,
+        settings.barhopping_minute,
+        settings.barhopping_timezone,
     )
 
 

@@ -19,7 +19,7 @@ LOGGER = logging.getLogger(__name__)
 class HuggingFacePostcardClient:
     """Tiny wrapper around the Hugging Face text-to-image endpoint."""
 
-    _PLACEHOLDER_PATH = Path(__file__).resolve().parent / "download.jpg"
+    _PLACEHOLDER_PATH = Path(__file__).resolve().parent / "postcard_placeholder.jpg"
 
     def __init__(
         self,
