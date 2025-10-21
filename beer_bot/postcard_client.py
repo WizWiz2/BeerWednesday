@@ -16,7 +16,10 @@ from PIL import Image, ImageDraw, ImageFont
 LOGGER = logging.getLogger(__name__)
 
 
-PLACEHOLDER_POSTCARD_PATH = Path(__file__).resolve().parent / "postcard_placeholder.jpg"
+_ASSETS_DIR = Path(__file__).resolve().parent
+
+BEER_POSTCARD_PLACEHOLDER_PATH = _ASSETS_DIR / "download.jpg"
+BARGHOPPING_POSTCARD_PLACEHOLDER_PATH = _ASSETS_DIR / "postcard_placeholder.jpg"
 
 
 class HuggingFacePostcardClient:
@@ -46,8 +49,11 @@ class HuggingFacePostcardClient:
         num_inference_steps: int = 28,
         width: int = 1024,
         height: int = 1024,
+        placeholder_path: Optional[Path] = None,
     ) -> bytes:
         """Generate postcard image bytes for the provided text prompt."""
+
+        fallback_placeholder = placeholder_path or BEER_POSTCARD_PLACEHOLDER_PATH
 
         payload: Dict[str, Any] = {
             "inputs": prompt,
@@ -88,6 +94,7 @@ class HuggingFacePostcardClient:
                     )
                     return self._render_fallback_postcard(
                         prompt,
+                        placeholder_path=fallback_placeholder,
                         width=width,
                         height=height,
                     )
@@ -121,24 +128,27 @@ class HuggingFacePostcardClient:
         self,
         prompt: str,
         *,
+        placeholder_path: Path,
         width: int,
         height: int,
     ) -> bytes:
         """Generate a simple postcard using Pillow when API is unavailable."""
 
         try:
-            with Image.open(PLACEHOLDER_POSTCARD_PATH) as placeholder:
+            with Image.open(placeholder_path) as placeholder:
                 postcard = placeholder.convert("RGB")
                 if postcard.size != (width, height):
                     postcard = postcard.resize((width, height), Image.LANCZOS)
         except FileNotFoundError:
             LOGGER.warning(
-                "Фирменный постер не найден — используем резервный рендер",
+                "Фирменный постер не найден по пути %s — используем резервный рендер",
+                placeholder_path,
             )
             return self._render_legacy_postcard(prompt, width=width, height=height)
         except OSError:
             LOGGER.exception(
-                "Не удалось загрузить изображение-заглушку, используем резервный рендер",
+                "Не удалось загрузить изображение-заглушку %s, используем резервный рендер",
+                placeholder_path,
             )
             return self._render_legacy_postcard(prompt, width=width, height=height)
 
