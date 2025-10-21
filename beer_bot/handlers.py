@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 from datetime import date, datetime, timedelta
 from io import BytesIO
+from pathlib import Path
 from typing import Dict, List, Optional
 
 from telegram import Message, Update
@@ -14,7 +15,11 @@ from zoneinfo import ZoneInfo
 
 from .config import DEFAULT_BARGHOPPING_PROMPT, DEFAULT_POSTCARD_PROMPT
 from .groq_client import GroqVisionClient
-from .postcard_client import HuggingFacePostcardClient, PLACEHOLDER_POSTCARD_PATH
+from .postcard_client import (
+    BARGHOPPING_POSTCARD_PLACEHOLDER_PATH,
+    BEER_POSTCARD_PLACEHOLDER_PATH,
+    HuggingFacePostcardClient,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -35,19 +40,15 @@ DEFAULT_BEER_POLL_QUESTION = "Кто идёт на пивную среду?"
 DEFAULT_BARGHOPPING_POLL_QUESTION = "Кто идёт на бархоппинг?"
 
 
-def _load_placeholder_postcard() -> Optional[bytes]:
+def _load_placeholder_postcard(*, path: Path) -> Optional[bytes]:
     """Read the bundled placeholder postcard image from disk."""
 
     try:
-        return PLACEHOLDER_POSTCARD_PATH.read_bytes()
+        return path.read_bytes()
     except FileNotFoundError:
-        LOGGER.error(
-            "Placeholder postcard file is missing at %s", PLACEHOLDER_POSTCARD_PATH
-        )
+        LOGGER.error("Placeholder postcard file is missing at %s", path)
     except OSError:  # pragma: no cover - defensive branch
-        LOGGER.exception(
-            "Failed to read placeholder postcard from %s", PLACEHOLDER_POSTCARD_PATH
-        )
+        LOGGER.exception("Failed to read placeholder postcard from %s", path)
 
     return None
 
@@ -129,6 +130,7 @@ async def postcard_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         context=context,
         prompt=prompt,
         reply_to_message_id=update.message.message_id,
+        placeholder_path=BEER_POSTCARD_PLACEHOLDER_PATH,
     )
 
     if postcard_sent:
@@ -168,6 +170,7 @@ async def barhopping_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         negative_prompt=negative_prompt,
         caption=caption,
         reply_to_message_id=update.message.message_id,
+        placeholder_path=BARGHOPPING_POSTCARD_PLACEHOLDER_PATH,
     )
 
     if postcard_sent:
@@ -404,6 +407,7 @@ async def scheduled_postcard_job(context: ContextTypes.DEFAULT_TYPE) -> None:
         caption=str(job_data.get("caption", ""))
         if job_data.get("caption")
         else None,
+        placeholder_path=BEER_POSTCARD_PLACEHOLDER_PATH,
     )
 
     if postcard_sent:
@@ -487,6 +491,7 @@ async def scheduled_barhopping_notification_job(
         prompt=postcard_prompt,
         negative_prompt=str(negative_prompt) if negative_prompt else None,
         caption=str(caption) if caption else None,
+        placeholder_path=BARGHOPPING_POSTCARD_PLACEHOLDER_PATH,
     )
 
     if postcard_sent:
@@ -645,6 +650,7 @@ async def _send_postcard(
     negative_prompt: Optional[str] = None,
     caption: Optional[str] = None,
     reply_to_message_id: Optional[int] = None,
+    placeholder_path: Path,
 ) -> bool:
     """Generate postcard and send it to the specified chat."""
 
@@ -663,7 +669,7 @@ async def _send_postcard(
         LOGGER.warning(
             "Postcard client is not configured — sending bundled placeholder postcard"
         )
-        placeholder_bytes = _load_placeholder_postcard()
+        placeholder_bytes = _load_placeholder_postcard(path=placeholder_path)
         if placeholder_bytes is None:
             fail_text = "Генерация открыток недоступна: нет доступа к Hugging Face API."
             if reply_to_message_id:
@@ -694,6 +700,7 @@ async def _send_postcard(
         image_bytes = await client.generate_postcard(
             prompt,
             negative_prompt=negative_prompt,
+            placeholder_path=placeholder_path,
         )
     except Exception:  # pragma: no cover - runtime guard
         LOGGER.exception("Failed to generate postcard")
