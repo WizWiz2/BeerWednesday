@@ -704,6 +704,18 @@ async def _send_postcard(
         )
     except Exception:  # pragma: no cover - runtime guard
         LOGGER.exception("Failed to generate postcard")
+        placeholder_bytes = _load_placeholder_postcard(path=placeholder_path)
+
+        if placeholder_bytes is not None:
+            LOGGER.info("Sending placeholder postcard due to generation failure")
+            await context.bot.send_photo(
+                chat_id=chat_id,
+                photo=placeholder_bytes,
+                caption=caption_to_send,
+                reply_to_message_id=reply_to_message_id,
+            )
+            return True
+
         fail_text = "Не получилось сгенерировать открытку, попробуй позже."
         if reply_to_message_id:
             await context.bot.send_message(
