@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import date, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
@@ -331,7 +332,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Answer beer questions when the bot is addressed directly."""
+    """Answer beer questions when the bot is addressed directly or by keyword."""
     message = update.message
     if not message:
         return
@@ -349,6 +350,8 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
             return
 
+    contains_beer_keyword = False
+
     if message.text:
         trimmed_text = message.text.strip()
         if trimmed_text.startswith("/"):
@@ -358,6 +361,12 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             if command_name == "debug_postcards":
                 await debug_postcards_command(update, context)
                 return
+
+        contains_beer_keyword = _mentions_beer_keyword(trimmed_text)
+
+    if contains_beer_keyword:
+        await _respond_as_sommelier(message, context, getattr(context.bot, "username", None))
+        return
 
     bot_username = getattr(context.bot, "username", None)
     bot_id = getattr(context.bot, "id", None)
@@ -606,6 +615,15 @@ async def _respond_as_sommelier(
         return
 
     await message.reply_text(answer)
+
+
+def _mentions_beer_keyword(text: str) -> bool:
+    """Return True if the text contains the word 'пиво' or similar forms."""
+
+    if not text:
+        return False
+
+    return re.search(r"\bпив[а-яё]*", text, flags=re.IGNORECASE) is not None
 
 
 def _compose_postcard_prompt(
