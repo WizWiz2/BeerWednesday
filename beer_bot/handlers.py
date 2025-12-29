@@ -21,6 +21,7 @@ from .postcard_client import (
     BEER_POSTCARD_PLACEHOLDER_PATH,
     HuggingFacePostcardClient,
 )
+from .memory import ConversationManager
 
 LOGGER = logging.getLogger(__name__)
 
@@ -330,6 +331,18 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     await update.message.reply_text(review)
 
+    # Save context for potential follow-up questions
+    conversation_manager: Optional[ConversationManager] = context.application.bot_data.get(
+        "conversation_manager"
+    )
+    if conversation_manager:
+        chat_id = update.effective_chat.id
+        # We don't save the image itself to history to save tokens/memory,
+        # but we save the user's caption (if any) and the bot's review.
+        user_text = f"Фото пива. {caption}" if caption else "Фото пива."
+        conversation_manager.add_message(chat_id, "user", user_text)
+        conversation_manager.add_message(chat_id, "assistant", review)
+
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Answer beer questions when the bot is addressed directly or by keyword."""
@@ -607,14 +620,23 @@ async def _respond_as_sommelier(
         action=ChatAction.TYPING,
     )
 
+    conversation_manager: Optional[ConversationManager] = context.application.bot_data.get(
+        "conversation_manager"
+    )
+    history = conversation_manager.get_history(message.chat_id) if conversation_manager else None
+
     try:
-        answer = await groq_client.answer_beer_question(question)
+        answer = await groq_client.answer_beer_question(question, history=history)
     except Exception:  # pragma: no cover - runtime guard
         LOGGER.exception("Failed to answer beer question")
         await message.reply_text("Не удалось обсудить пиво, попробуй позже.")
         return
 
     await message.reply_text(answer)
+
+    if conversation_manager:
+        conversation_manager.add_message(message.chat_id, "user", question)
+        conversation_manager.add_message(message.chat_id, "assistant", answer)
 
 
 def _mentions_beer_keyword(text: str) -> bool:

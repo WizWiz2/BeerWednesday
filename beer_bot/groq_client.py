@@ -236,7 +236,11 @@ class GroqVisionClient:
             max_tokens=140,
         )
 
-    async def answer_beer_question(self, question: str) -> str:
+    async def answer_beer_question(
+        self,
+        question: str,
+        history: Optional[list[Dict[str, str]]] = None,
+    ) -> str:
         """Respond to a beer-related question in the sommelier persona."""
 
         prompt = (
@@ -248,10 +252,12 @@ class GroqVisionClient:
             "информативным и говори по-русски."
         )
 
+        messages = [{"role": "system", "content": prompt}]
+        if history:
+            messages.extend(history)
+        messages.append({"role": "user", "content": question})
+
         return await self._request_completion(
-            [
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": question},
-            ],
+            messages,
             max_tokens=220,
         )
