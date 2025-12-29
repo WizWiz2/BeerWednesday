@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import logging
+import re
 from typing import Any, Dict, Optional
 
 import httpx
@@ -153,7 +154,15 @@ class GroqVisionClient:
 
         data = response.json()
         try:
-            return data["choices"][0]["message"]["content"].strip()
+            content = data["choices"][0]["message"]["content"]
+            # Remove Llama 3 header artifacts if present
+            content = re.sub(
+                r"<\|header_start\|>.*?<\|header_end\|>",
+                "",
+                content,
+                flags=re.DOTALL,
+            )
+            return content.strip()
         except (KeyError, IndexError, TypeError) as exc:  # pragma: no cover - defensive
             LOGGER.exception("Unexpected response structure from Groq: %s", data)
             raise RuntimeError("Не удалось разобрать ответ от Groq") from exc
