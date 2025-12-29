@@ -19,6 +19,7 @@ from telegram.ext import (
 from .config import Settings
 from .groq_client import GroqVisionClient
 from .postcard_client import HuggingFacePostcardClient
+from .memory import ConversationManager
 from . import handlers
 
 logging.basicConfig(
@@ -42,6 +43,7 @@ def _build_application(settings: Settings) -> Application:
     )
 
     application.bot_data["groq_client"] = groq_client
+    application.bot_data["conversation_manager"] = ConversationManager()
 
     application.bot_data["postcard_prompt"] = settings.postcard_prompt
     application.bot_data["postcard_negative_prompt"] = settings.postcard_negative_prompt
