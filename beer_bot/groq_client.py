@@ -261,3 +261,29 @@ class GroqVisionClient:
             messages,
             max_tokens=220,
         )
+
+    async def defend_vip(self, text: str) -> Optional[str]:
+        """Respond defensively if the user insults the VIP, else return None."""
+
+        prompt = (
+            "Ты — верный телохранитель и друг Сергея Барякина (@wizwiz0107). "
+            "Твоя задача — защищать его от любых прямых нападок и оскорблений. "
+            "Проанализируй сообщение пользователя ниже. "
+            "1. Если сообщение содержит прямое оскорбление, наезд или неуважение к ЛИЧНОСТИ Сергея/WizWiz — "
+            "ответь дерзко, иронично и жестко, поставь обидчика на место. Используй пацанский сленг. "
+            "2. Если сообщение просто выражает несогласие с мнением, негатив к теме разговора "
+            "(но не к личности), является нейтральным или позитивным — ОБЯЗАТЕЛЬНО верни пустую строку "
+            "(ничего не отвечай). Твоя цель — защита чести, а не цензура мнений."
+        )
+
+        response = await self._request_completion(
+            [
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": text},
+            ],
+            max_tokens=150,
+            temperature=1.0,
+        )
+
+        cleaned = response.strip()
+        return cleaned if cleaned else None
