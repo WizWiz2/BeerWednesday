@@ -343,6 +343,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         conversation_manager.add_message(chat_id, "user", user_text)
         conversation_manager.add_message(chat_id, "assistant", review)
 
+    if update.effective_user and update.effective_user.username:
+        context.chat_data["last_speaker"] = update.effective_user.username
+
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Answer beer questions when the bot is addressed directly or by keyword."""
@@ -376,6 +379,8 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             replied_username = message.reply_to_message.from_user.username
             if replied_username and replied_username.lower() == "wizwiz0107":
                 is_vip_targeted = True
+        elif context.chat_data.get("last_speaker") == "wizwiz0107":
+            is_vip_targeted = True
 
         if is_vip_targeted:
             groq_client: Optional[GroqVisionClient] = context.application.bot_data.get("groq_client")
@@ -384,6 +389,11 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 if defense_response:
                     await context.bot.send_chat_action(chat_id=message.chat_id, action=ChatAction.TYPING)
                     await message.reply_text(defense_response)
+                    # Important: Update speaker even if we stop here to track the attacker?
+                    # Probably yes, but the return prevents it.
+                    # Let's add it before returning.
+                    if update.effective_user and update.effective_user.username:
+                        context.chat_data["last_speaker"] = update.effective_user.username
                     return
 
         trimmed_text = message.text.strip()
@@ -405,9 +415,14 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     bot_id = getattr(context.bot, "id", None)
 
     if not _is_direct_engagement(message, bot_username, bot_id):
+        if update.effective_user and update.effective_user.username:
+            context.chat_data["last_speaker"] = update.effective_user.username
         return
 
     await _respond_as_sommelier(message, context, bot_username)
+
+    if update.effective_user and update.effective_user.username:
+        context.chat_data["last_speaker"] = update.effective_user.username
 
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:  # pragma: no cover
