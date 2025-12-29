@@ -296,4 +296,10 @@ class GroqVisionClient:
         )
 
         cleaned = response.strip()
-        return cleaned if cleaned else None
+
+        # Filter out responses that are just punctuation or empty
+        if not any(char.isalnum() for char in cleaned):
+            LOGGER.info("Filtered out non-alphanumeric response: %r", cleaned)
+            return None
+
+        return cleaned
