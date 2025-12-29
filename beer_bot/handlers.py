@@ -365,7 +365,18 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     contains_beer_keyword = False
 
+    # VIP Defense Check
     if message.text:
+        text_lower = message.text.lower()
+        if "wizwiz0107" in text_lower or "барякин" in text_lower:
+            groq_client: Optional[GroqVisionClient] = context.application.bot_data.get("groq_client")
+            if groq_client:
+                defense_response = await groq_client.defend_vip(message.text)
+                if defense_response:
+                    await context.bot.send_chat_action(chat_id=message.chat_id, action=ChatAction.TYPING)
+                    await message.reply_text(defense_response)
+                    return
+
         trimmed_text = message.text.strip()
         if trimmed_text.startswith("/"):
             command = trimmed_text.split(None, 1)[0]
