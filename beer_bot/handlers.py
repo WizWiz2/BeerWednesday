@@ -368,7 +368,16 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     # VIP Defense Check
     if message.text:
         text_lower = message.text.lower()
+
+        is_vip_targeted = False
         if "wizwiz0107" in text_lower or "барякин" in text_lower:
+            is_vip_targeted = True
+        elif message.reply_to_message and message.reply_to_message.from_user:
+            replied_username = message.reply_to_message.from_user.username
+            if replied_username and replied_username.lower() == "wizwiz0107":
+                is_vip_targeted = True
+
+        if is_vip_targeted:
             groq_client: Optional[GroqVisionClient] = context.application.bot_data.get("groq_client")
             if groq_client:
                 defense_response = await groq_client.defend_vip(message.text)
