@@ -104,11 +104,8 @@ def _schedule_weekly_postcard(application: Application, settings: Settings) -> N
         )
         return
 
-    if "postcard_client" not in application.bot_data:
-        LOGGER.warning(
-            "Postcard client не сконфигурирован — пропускаем расписание открыток."
-        )
-        return
+    # Note: We don't block scheduling if postcard_client is missing.
+    # The handler will send a placeholder image instead.
 
     try:
         tzinfo = ZoneInfo(settings.postcard_timezone)
@@ -145,7 +142,7 @@ def _schedule_barhopping_notification(application: Application, settings: Settin
     """Register a Thursday reminder for the monthly barhopping meetup."""
 
     if not settings.barhopping_chat_id:
-        LOGGER.info("BARGHOPPING_CHAT_ID не задан — ежемесячная рассылка отключена.")
+        LOGGER.info("BARHOPPING_CHAT_ID не задан — ежемесячная рассылка отключена.")
         return
 
     if application.job_queue is None:
@@ -157,11 +154,8 @@ def _schedule_barhopping_notification(application: Application, settings: Settin
         )
         return
 
-    if "postcard_client" not in application.bot_data:
-        LOGGER.warning(
-            "Postcard client не сконфигурирован — пропускаем расписание бархоппинга."
-        )
-        return
+    # Note: We don't block scheduling if postcard_client is missing.
+    # The handler will send a placeholder image instead.
 
     try:
         tzinfo = ZoneInfo(settings.barhopping_timezone)
