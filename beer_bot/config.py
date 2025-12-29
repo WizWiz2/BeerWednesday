@@ -130,16 +130,28 @@ class Settings:
         postcard_weekday_raw = os.getenv("POSTCARD_WEEKDAY")
         postcard_hour_raw = os.getenv("POSTCARD_HOUR")
         postcard_minute_raw = os.getenv("POSTCARD_MINUTE")
-        barhopping_chat_id_raw = os.getenv("BARGHOPPING_CHAT_ID")
-        barhopping_prompt = os.getenv("BARGHOPPING_PROMPT", cls.barhopping_prompt)
-        barhopping_negative_prompt = os.getenv(
+        barhopping_chat_id_raw = os.getenv("BARHOPPING_CHAT_ID") or os.getenv(
+            "BARGHOPPING_CHAT_ID"
+        )
+        barhopping_prompt = os.getenv("BARHOPPING_PROMPT") or os.getenv(
+            "BARGHOPPING_PROMPT", cls.barhopping_prompt
+        )
+        barhopping_negative_prompt = os.getenv("BARHOPPING_NEGATIVE_PROMPT") or os.getenv(
             "BARGHOPPING_NEGATIVE_PROMPT", cls.barhopping_negative_prompt or ""
         )
-        barhopping_caption = os.getenv("BARGHOPPING_CAPTION", cls.barhopping_caption)
-        barhopping_timezone = os.getenv("BARGHOPPING_TIMEZONE", cls.barhopping_timezone)
-        barhopping_hour_raw = os.getenv("BARGHOPPING_HOUR")
-        barhopping_minute_raw = os.getenv("BARGHOPPING_MINUTE")
-        barhopping_poll_question = os.getenv(
+        barhopping_caption = os.getenv("BARHOPPING_CAPTION") or os.getenv(
+            "BARGHOPPING_CAPTION", cls.barhopping_caption
+        )
+        barhopping_timezone = os.getenv("BARHOPPING_TIMEZONE") or os.getenv(
+            "BARGHOPPING_TIMEZONE", cls.barhopping_timezone
+        )
+        barhopping_hour_raw = os.getenv("BARHOPPING_HOUR") or os.getenv(
+            "BARGHOPPING_HOUR"
+        )
+        barhopping_minute_raw = os.getenv("BARHOPPING_MINUTE") or os.getenv(
+            "BARGHOPPING_MINUTE"
+        )
+        barhopping_poll_question = os.getenv("BARHOPPING_POLL_QUESTION") or os.getenv(
             "BARGHOPPING_POLL_QUESTION", cls.barhopping_poll_question
         )
 
