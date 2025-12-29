@@ -83,5 +83,28 @@ class TestGroqClient(unittest.IsolatedAsyncioTestCase):
 
             self.assertEqual(response, "I am watching you.")
 
+    async def test_defend_vip_ignores_garbage_punctuation(self):
+        """Test that defend_vip returns None if response is just punctuation."""
+
+        garbage_response = "<|header_start|>assistant<|header_end|>\n."
+
+        with patch("httpx.AsyncClient.post") as mock_post:
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {
+                "choices": [
+                    {
+                        "message": {
+                            "content": garbage_response
+                        }
+                    }
+                ]
+            }
+            mock_post.return_value = mock_response
+
+            response = await self.client.defend_vip("Neutral statement")
+
+            self.assertIsNone(response)
+
 if __name__ == "__main__":
     unittest.main()
