@@ -106,5 +106,28 @@ class TestGroqClient(unittest.IsolatedAsyncioTestCase):
 
             self.assertIsNone(response)
 
+    async def test_defend_vip_ignores_common_empty_patterns(self):
+        """Test that defend_vip returns None for common 'empty' responses."""
+
+        patterns = ["&nbsp;", "Пустая строка", "Empty string", "   "]
+
+        for pattern in patterns:
+            with patch("httpx.AsyncClient.post") as mock_post:
+                mock_response = MagicMock()
+                mock_response.status_code = 200
+                mock_response.json.return_value = {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": pattern
+                            }
+                        }
+                    ]
+                }
+                mock_post.return_value = mock_response
+
+                response = await self.client.defend_vip("Neutral message")
+                self.assertIsNone(response, f"Failed to filter out: {pattern}")
+
 if __name__ == "__main__":
     unittest.main()

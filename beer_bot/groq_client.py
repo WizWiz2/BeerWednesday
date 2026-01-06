@@ -282,7 +282,7 @@ class GroqVisionClient:
             "ответь в стиле Уэнсдей Аддамс: холодно, мрачно, интеллектуально и убийственно иронично. "
             "Уничтожь оппонента словами, не опускаясь до грубости. "
             "2. Если сообщение нейтральное, позитивное или касается только темы разговора "
-            "(без перехода на личности) — ОБЯЗАТЕЛЬНО верни пустую строку (ничего не отвечай). "
+            "(без перехода на личности) — ОБЯЗАТЕЛЬНО верни токен NO_RESPONSE и больше ничего. "
             "Твоя цель — защита достоинства с ледяным спокойствием."
         )
 
@@ -296,6 +296,16 @@ class GroqVisionClient:
         )
 
         cleaned = response.strip()
+        cleaned_lower = cleaned.lower()
+
+        # Handle explicit no-response tokens and common hallucinations for "empty"
+        if (
+            cleaned == "NO_RESPONSE"
+            or cleaned_lower == "пустая строка"
+            or cleaned_lower == "empty string"
+            or cleaned_lower == "&nbsp;"
+        ):
+            return None
 
         # Filter out responses that are just punctuation or empty
         if not any(char.isalnum() for char in cleaned):
