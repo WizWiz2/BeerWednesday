@@ -1,4 +1,4 @@
-"""Entry point for the Beer Wednesday Telegram bot."""
+"""Entry point for the Beer Tuesday Telegram bot."""
 from __future__ import annotations
 
 import logging
@@ -50,7 +50,7 @@ def _build_application(settings: Settings) -> Application:
     application.bot_data["postcard_caption"] = settings.postcard_caption
     application.bot_data["postcard_scenarios"] = settings.postcard_scenarios
     application.bot_data["postcard_scenario_index"] = 0
-    application.bot_data["beer_poll_question"] = handlers.DEFAULT_BEER_POLL_QUESTION
+    application.bot_data["beer_poll_question"] = "Кто идёт на пивной вторник?"
     application.bot_data["barhopping_prompt"] = settings.barhopping_prompt
     application.bot_data["barhopping_negative_prompt"] = settings.barhopping_negative_prompt
     application.bot_data["barhopping_caption"] = settings.barhopping_caption
@@ -87,7 +87,7 @@ def _build_application(settings: Settings) -> Application:
 
 
 def _schedule_weekly_postcard(application: Application, settings: Settings) -> None:
-    """Register a weekly job that sends the Beer Wednesday postcard."""
+    """Register a weekly job that sends the Beer Tuesday postcard."""
 
     if not settings.postcard_chat_id:
         LOGGER.warning(
