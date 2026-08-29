@@ -1,4 +1,4 @@
-"""Beer Wednesday Telegram bot package."""
+"""Beer Tuesday Telegram bot package."""
 
 __all__ = [
     "__version__",

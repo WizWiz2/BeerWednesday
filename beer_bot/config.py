@@ -1,4 +1,4 @@
-"""Configuration helpers for the Beer Wednesday bot."""
+"""Configuration helpers for the Beer Tuesday bot."""
 from __future__ import annotations
 
 import logging
@@ -12,7 +12,7 @@ LOGGER = logging.getLogger(__name__)
 
 DEFAULT_POSTCARD_PROMPT = (
     "A vibrant illustrated invitation postcard for a weekly get-together called"
-    " 'Пивная среда'. Capture a cozy bar in the evening with a group of male"
+    " 'Пивной вторник'. Capture a cozy bar in the evening with a group of male"
     " friends smiling and clinking tall beer glasses. Use warm cinematic lighting,"
     " lots of amber highlights, wood textures and playful details. Keep the scene"
     " free from any visible text or lettering within the image."
@@ -23,7 +23,7 @@ DEFAULT_POSTCARD_NEGATIVE_PROMPT = (
 )
 
 DEFAULT_POSTCARD_CAPTION = (
-    "🍻 Пивная среда уже завтра! Стартуем в 19:30 — приходи пораньше и"
+    "🍻 Пивной вторник уже завтра! Стартуем в 19:30 — приходи пораньше и"
     " захвати друзей."
 )
 
@@ -88,7 +88,7 @@ class Settings:
     postcard_negative_prompt: Optional[str] = DEFAULT_POSTCARD_NEGATIVE_PROMPT
     postcard_caption: str = DEFAULT_POSTCARD_CAPTION
     postcard_timezone: str = "Asia/Almaty"
-    postcard_weekday: int = 2
+    postcard_weekday: int = 1
     postcard_hour: int = 21
     postcard_minute: int = 0
     postcard_scenarios: List[str] = field(

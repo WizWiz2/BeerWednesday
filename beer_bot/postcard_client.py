@@ -216,7 +216,7 @@ class HuggingFacePostcardClient:
             return bbox[2] - bbox[0], bbox[3] - bbox[1]
 
         header_y = top_padding
-        title_text = "Beer Wednesday"
+        title_text = "Beer Tuesday"
         _, title_h = measure_text(title_text, title_font)
         draw.text(
             (padding_x, header_y),
@@ -234,7 +234,7 @@ class HuggingFacePostcardClient:
             fill=text_color,
         )
 
-        tagline_text = "Крафтовый четверг для своих" if datetime.now().weekday() == 3 else "Среда, когда собираются друзья"
+        tagline_text = "Вторник, когда собираются друзья"
         _, tagline_h = measure_text(tagline_text, caption_font)
         draw.text(
             (padding_x, header_y + title_h + date_h + 36),
