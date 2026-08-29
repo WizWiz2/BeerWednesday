@@ -13,6 +13,8 @@ class TestConfig(unittest.TestCase):
         # This should fail if the code only looks for BARGHOPPING_CHAT_ID
         settings = Settings.load()
         self.assertEqual(settings.barhopping_chat_id, 123456)
+        self.assertEqual(settings.postcard_weekday, 1)
+        self.assertIn("Пивной вторник", settings.postcard_caption)
 
     @patch.dict(os.environ, {
         "TELEGRAM_BOT_TOKEN": "test_token",
